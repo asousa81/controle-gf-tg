@@ -3,7 +3,7 @@ import pandas as pd
 from datetime import date
 from supabase import create_client
 
-# --- TRAVA DE SEGURANÇA (Obrigatório em todas as páginas) ---
+# --- TRAVA DE SEGURANÇA ---
 if "logado" not in st.session_state or not st.session_state.logado:
     st.warning("⚠️ Por favor, faça login na página inicial.")
     st.stop()
@@ -19,40 +19,46 @@ supabase = get_supabase_client()
 st.title("📝 Lançamento de Presença")
 
 # 1. SELEÇÃO DO GRUPO E DATA
+res_g = supabase.table("grupos_familiares").select("id, numero, nome").eq("ativo", True).execute()
+if not res_g.data:
+    st.info("Nenhum grupo cadastrado.")
+    st.stop()
+
 col1, col2 = st.columns(2)
 with col1:
-    res_g = supabase.table("grupos_familiares").select("id, numero, nome").eq("ativo", True).execute()
     grupo_sel = st.selectbox("Selecione o GF", res_g.data, format_func=lambda x: f"GF {x['numero']} - {x['nome']}")
-
 with col2:
     data_reuniao = st.date_input("Data da Reunião", date.today())
 
 tema = st.text_input("Tema da Reunião (Opcional)")
 
-# 2. BUSCAR MEMBROS DO GRUPO
+# 2. BUSCAR MEMBROS E LIMPAR DUPLICATAS
 if grupo_sel:
-    # Busca pessoas vinculadas a este grupo específico
     res_m = supabase.table("membros_grupo").select("pessoa_id, pessoas(nome_completo)").eq("grupo_id", grupo_sel["id"]).eq("ativo", True).execute()
-    membros = res_m.data
-
-    if not membros:
+    
+    if not res_m.data:
         st.info("Este grupo ainda não possui membros vinculados.")
     else:
-        st.subheader(f"Lista de Chamada - {grupo_sel['nome']}")
+        # 💡 O TRUQUE: Usamos um dicionário para remover duplicatas de pessoa_id automaticamente
+        membros_unicos = {m["pessoa_id"]: m["pessoas"]["nome_completo"] for m in res_m.data if m["pessoas"]}
         
-        # Criamos um dicionário para guardar quem está presente
+        st.subheader(f"Lista de Chamada")
+        st.write("Marque quem compareceu:")
+        
         presencas_dict = {}
         
-        for m in membros:
-            nome = m["pessoas"]["nome_completo"]
-            p_id = m["pessoa_id"]
-            # Checkbox para cada pessoa
-            presencas_dict[p_id] = st.checkbox(nome, key=f"p_{p_id}")
+        # Criamos as colunas para os checkboxes ficarem organizados
+        cols = st.columns(3)
+        for i, (p_id, nome) in enumerate(membros_unicos.items()):
+            with cols[i % 3]:
+                presencas_dict[p_id] = st.checkbox(nome, key=f"p_{p_id}")
 
-        # 3. SALVAR NO BANCO
-        if st.form_submit_button("Salvar Presença") if False else st.button("Finalizar Chamada"):
+        st.divider()
+        
+        # 3. BOTÃO DE SALVAR
+        if st.button("🚀 Finalizar e Salvar Chamada", type="primary"):
             try:
-                # Primeiro, cria o registro da reunião
+                # Cria o registro da reunião
                 reuniao_res = supabase.table("reunioes").insert({
                     "grupo_id": grupo_sel["id"],
                     "data_reuniao": str(data_reuniao),
@@ -61,20 +67,20 @@ if grupo_sel:
                 
                 reuniao_id = reuniao_res.data[0]["id"]
                 
-                # Depois, insere a lista de presença
-                lista_presenca = []
+                # Prepara a lista de presença (apenas quem foi marcado)
+                dados_presenca = []
                 for p_id, presente in presencas_dict.items():
-                    lista_presenca.append({
-                        "reuniao_id": reuniao_id,
-                        "pessoa_id": p_id,
-                        "presente": presente
-                    })
+                    if presente: # Opcional: você pode salvar apenas quem foi ou todos com True/False
+                        dados_presenca.append({
+                            "reuniao_id": reuniao_id,
+                            "pessoa_id": p_id,
+                            "presente": presente
+                        })
                 
-                supabase.table("presencas").insert(lista_presenca).execute()
-                st.success("✨ Presença lançada com sucesso!")
+                if dados_presenca:
+                    supabase.table("presencas").insert(dados_presenca).execute()
+                
+                st.success(f"Presença de {len(dados_presenca)} pessoas registrada!")
                 st.balloons()
             except Exception as e:
                 st.error(f"Erro ao salvar: {e}")
-
-st.divider()
-st.info("Dica: Os dados lançados aqui alimentarão os gráficos de crescimento dos GFs futuramente.")
