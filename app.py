@@ -4,299 +4,192 @@ import sqlite3
 from datetime import date, datetime
 
 # --- CONFIGURAÇÃO DA PÁGINA ---
-st.set_page_config(page_title="Controle de Chamada - GF", page_icon="📋", layout="centered")
+st.set_page_config(page_title="Sistema de Gestão - GFs", page_icon="📋", layout="wide")
 
-# --- SENHA DO ADMIN ---
-# Recomendo alterar esta senha depois ou usar o st.secrets no ambiente de produção
 SENHA_ADMIN = "gf123"
+DB_NAME = "gf_gestao_final.db"
 
-# --- FUNÇÕES DE BANCO DE DADOS (SQLite) ---
-DB_NAME = "gf_controle.db"
-
+# --- FUNÇÕES DE BANCO DE DADOS ---
 def init_db():
-    """Cria as tabelas no banco de dados se não existirem."""
     conn = sqlite3.connect(DB_NAME)
     c = conn.cursor()
     
-    # Tabela de Membros
-    c.execute('''
-        CREATE TABLE IF NOT EXISTS membros (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            nome TEXT NOT NULL,
-            estado_civil INTEGER,
-            gf_nome TEXT
-        )
-    ''')
+    # Tabela de GFs
+    c.execute('''CREATE TABLE IF NOT EXISTS gfs (
+        id INTEGER PRIMARY KEY AUTOINCREMENT, nome TEXT NOT NULL, lider_1 TEXT, lider_2 TEXT)''')
     
-    # Tabela de Presenças (Chamada)
-    c.execute('''
-        CREATE TABLE IF NOT EXISTS presencas (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            data TEXT NOT NULL,
-            membro_id INTEGER,
-            status TEXT,
-            FOREIGN KEY(membro_id) REFERENCES membros(id)
-        )
-    ''')
+    # NOVA TABELA: Reuniões (para salvar horários e metadados do dia)
+    c.execute('''CREATE TABLE IF NOT EXISTS reunioes (
+        id INTEGER PRIMARY KEY AUTOINCREMENT, data TEXT, gf_id INTEGER, 
+        horario_inicio TEXT, horario_termino TEXT, UNIQUE(data, gf_id))''')
+    
+    # Tabela de Membros
+    c.execute('''CREATE TABLE IF NOT EXISTS membros (
+        id INTEGER PRIMARY KEY AUTOINCREMENT, nome TEXT NOT NULL, estado_civil INTEGER,
+        data_nascimento TEXT, data_casamento TEXT, gf_id INTEGER, FOREIGN KEY(gf_id) REFERENCES gfs(id))''')
+    
+    # Tabela de Presenças
+    c.execute('''CREATE TABLE IF NOT EXISTS presencas (
+        id INTEGER PRIMARY KEY AUTOINCREMENT, data TEXT, membro_id INTEGER, gf_id INTEGER, status TEXT)''')
     
     # Tabela de Visitantes
-    c.execute('''
-        CREATE TABLE IF NOT EXISTS visitantes (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            data TEXT NOT NULL,
-            nome TEXT NOT NULL
-        )
-    ''')
+    c.execute('''CREATE TABLE IF NOT EXISTS visitantes (
+        id INTEGER PRIMARY KEY AUTOINCREMENT, data TEXT, nome TEXT, gf_id INTEGER)''')
     
-    # Tabela de Configurações (Líderes, GF atual, etc.)
-    c.execute('''
-        CREATE TABLE IF NOT EXISTS config (
-            chave TEXT PRIMARY KEY,
-            valor TEXT
-        )
-    ''')
-    
-    # Inserir configurações padrão se a tabela estiver vazia
-    c.execute("SELECT COUNT(*) FROM config")
+    # Inserir GF padrão
+    c.execute("SELECT COUNT(*) FROM gfs")
     if c.fetchone()[0] == 0:
-        configs_iniciais = [
-            ("lider", "Pr. Arthur"),
-            ("coordenador", "Pra. Simone"),
-            ("nome_gf", "GF Principal")
-        ]
-        c.executemany("INSERT INTO config (chave, valor) VALUES (?, ?)", configs_iniciais)
+        c.execute("INSERT INTO gfs (nome, lider_1, lider_2) VALUES (?, ?, ?)", ("GF Sede", "Pr. Arthur", "Pra. Simone"))
         
     conn.commit()
     conn.close()
 
-def get_config(chave):
-    conn = sqlite3.connect(DB_NAME)
-    c = conn.cursor()
-    c.execute("SELECT valor FROM config WHERE chave = ?", (chave,))
-    resultado = c.fetchone()
-    conn.close()
-    return resultado[0] if resultado else ""
-
-def set_config(chave, valor):
-    conn = sqlite3.connect(DB_NAME)
-    c = conn.cursor()
-    c.execute("REPLACE INTO config (chave, valor) VALUES (?, ?)", (chave, valor))
-    conn.commit()
-    conn.close()
-
-# Inicializa o banco de dados logo que o app abre
 init_db()
 
-# --- AUTENTICAÇÃO ---
-def check_password():
-    if "admin_logado" not in st.session_state:
-        st.session_state.admin_logado = False
+# --- AUXILIARES ---
+opcoes_chamada = {"C": "C - No horário", "A": "A - Atraso", "F": "F - Falta", "D": "D - Justificada", "E": "E - Evento"}
+estado_civil_dict = {1: "Casado(a)", 2: "Solteiro(a)", 3: "Casado s/ cônjuge", 4: "Viúvo(a)", 5: "Divorciado(a)"}
+meses = {1: "Janeiro", 2: "Fevereiro", 3: "Março", 4: "Abril", 5: "Maio", 6: "Junho", 7: "Julho", 8: "Agosto", 9: "Setembro", 10: "Outubro", 11: "Novembro", 12: "Dezembro"}
 
+def check_password():
+    if "admin_logado" not in st.session_state: st.session_state.admin_logado = False
     if not st.session_state.admin_logado:
-        st.warning("Área restrita à liderança.")
-        senha = st.text_input("Senha de Acesso", type="password")
+        senha = st.text_input("Senha de Admin", type="password")
         if st.button("Entrar"):
             if senha == SENHA_ADMIN:
                 st.session_state.admin_logado = True
                 st.rerun()
-            else:
-                st.error("Senha incorreta.")
+            else: st.error("Senha incorreta")
         return False
     return True
 
-# --- DICIONÁRIOS DE CÓDIGOS ---
-opcoes_chamada = {
-    "C": "C - Comparecimento no horário",
-    "A": "A - Atraso (até 15 min)",
-    "F": "F - Falta sem aviso",
-    "D": "D - Falta justificada",
-    "E": "E - Evento na Igreja"
-}
+# --- INTERFACE ---
+st.title("📋 Sistema de Gestão Multi-GF")
 
-estado_civil_dict = {
-    1: "1 - Casado(a)", 
-    2: "2 - Solteiro(a)", 
-    3: "3 - Casado s/ cônjuge", 
-    4: "4 - Viúvo(a)", 
-    5: "5 - Divorciado(a)"
-}
+conn = sqlite3.connect(DB_NAME)
+df_gfs = pd.read_sql_query("SELECT * FROM gfs", conn)
 
-# --- INTERFACE PRINCIPAL ---
-st.title("📋 Relatório de Atividades do GF")
-
-# --- BARRA LATERAL ---
 with st.sidebar:
-    st.header("Detalhes do Encontro")
+    st.header("Configuração da Reunião")
+    gf_opcoes = dict(zip(df_gfs['id'], df_gfs['nome']))
+    gf_selecionado_id = st.selectbox("Selecione o GF", options=list(gf_opcoes.keys()), format_func=lambda x: gf_opcoes[x])
     
-    # Carrega configs do banco
-    nome_gf_atual = get_config("nome_gf")
-    lider_atual = get_config("lider")
-    coord_atual = get_config("coordenador")
+    gf_atual = df_gfs[df_gfs['id'] == gf_selecionado_id].iloc[0]
+    st.info(f"**Líderes:** {gf_atual['lider_1']} & {gf_atual['lider_2']}")
     
-    data_reuniao = st.date_input("Data da Reunião", date.today())
-    st.info(f"**GF:** {nome_gf_atual}\n\n**Líder:** {lider_atual}\n\n**Coordenador:** {coord_atual}")
-    
-    st.markdown("---")
-    col1, col2 = st.columns(2)
-    with col1:
-        inicio = st.time_input("Início")
-    with col2:
-        termino = st.time_input("Término")
+    data_reuniao = st.date_input("Data", date.today())
+    h_inicio = st.time_input("Início", datetime.strptime("20:00", "%H:%M").time())
+    h_fim = st.time_input("Término", datetime.strptime("22:00", "%H:%M").time())
 
-# --- ABAS ---
-aba_chamada, aba_visitantes, aba_relatorio, aba_admin = st.tabs([
-    "👥 Chamada", "👋 Visitantes", "📊 Relatórios", "🔐 Admin"
-])
+aba_chamada, aba_visitantes, aba_datas, aba_relatorio, aba_admin = st.tabs(["👥 Chamada", "👋 Visitantes", "🎉 Datas", "📊 Relatório Mensal", "🔐 Admin"])
 
-# ==========================================
-# ABA 1: CHAMADA
-# ==========================================
+# --- CHAMADA ---
 with aba_chamada:
-    st.subheader(f"Chamada do dia {data_reuniao.strftime('%d/%m/%Y')}")
+    st.subheader(f"Chamada: {gf_atual['nome']}")
+    membros_df = pd.read_sql_query("SELECT id, nome FROM membros WHERE gf_id = ? ORDER BY nome", conn, params=(gf_selecionado_id,))
     
-    conn = sqlite3.connect(DB_NAME)
-    membros_df = pd.read_sql_query("SELECT id, nome FROM membros ORDER BY nome", conn)
-    
-    if membros_df.empty:
-        st.info("Nenhum membro cadastrado. Vá até a aba 'Admin' para adicionar membros.")
+    if membros_df.empty: st.info("Adicione membros na aba Admin.")
     else:
         with st.form("form_chamada"):
             resultados = {}
-            for index, row in membros_df.iterrows():
-                col_nome, col_status = st.columns([3, 2])
-                with col_nome:
-                    st.write(f"**{row['nome']}**")
-                with col_status:
-                    resultados[row['id']] = st.selectbox(
-                        "Status", 
-                        options=list(opcoes_chamada.keys()), 
-                        format_func=lambda x: opcoes_chamada[x],
-                        label_visibility="collapsed",
-                        key=f"status_{row['id']}"
-                    )
+            for _, row in membros_df.iterrows():
+                col1, col2 = st.columns([3, 2])
+                col1.write(f"**{row['nome']}**")
+                resultados[row['id']] = col2.selectbox("Status", options=list(opcoes_chamada.keys()), format_func=lambda x: opcoes_chamada[x], key=f"m_{row['id']}", label_visibility="collapsed")
             
-            if st.form_submit_button("Salvar Chamada", use_container_width=True):
-                # Limpa os registros do dia para evitar duplicidade ao reenviar
-                data_str = data_reuniao.strftime('%Y-%m-%d')
+            if st.form_submit_button("Salvar Relatório do Dia", use_container_width=True):
+                data_s = data_reuniao.strftime('%Y-%m-%d')
                 c = conn.cursor()
-                c.execute("DELETE FROM presencas WHERE data = ?", (data_str,))
-                
-                # Insere os novos registros
-                for membro_id, status in resultados.items():
-                    c.execute("INSERT INTO presencas (data, membro_id, status) VALUES (?, ?, ?)", 
-                              (data_str, membro_id, status))
+                # Salva horários da reunião
+                c.execute("REPLACE INTO reunioes (data, gf_id, horario_inicio, horario_termino) VALUES (?, ?, ?, ?)", 
+                          (data_s, gf_selecionado_id, h_inicio.strftime("%H:%M"), h_fim.strftime("%H:%M")))
+                # Salva presenças
+                c.execute("DELETE FROM presencas WHERE data = ? AND gf_id = ?", (data_s, gf_selecionado_id))
+                for m_id, status in resultados.items():
+                    c.execute("INSERT INTO presencas (data, membro_id, gf_id, status) VALUES (?, ?, ?, ?)", (data_s, m_id, gf_selecionado_id, status))
                 conn.commit()
-                st.success("Chamada salva com sucesso!")
-    conn.close()
+                st.success("Dados salvos com sucesso!")
 
-# ==========================================
-# ABA 2: VISITANTES
-# ==========================================
+# --- VISITANTES ---
 with aba_visitantes:
-    st.subheader("Registro de Visitantes")
-    data_str = data_reuniao.strftime('%Y-%m-%d')
-    
-    with st.form("form_visitante"):
-        nome_visitante = st.text_input("Nome do Visitante")
-        if st.form_submit_button("Adicionar Visitante"):
-            if nome_visitante.strip():
-                conn = sqlite3.connect(DB_NAME)
-                c = conn.cursor()
-                c.execute("INSERT INTO visitantes (data, nome) VALUES (?, ?)", (data_str, nome_visitante.strip()))
-                conn.commit()
-                conn.close()
-                st.success(f"Visitante '{nome_visitante}' adicionado para a data {data_reuniao.strftime('%d/%m/%Y')}!")
-            else:
-                st.error("Digite o nome do visitante.")
+    st.subheader("Visitantes")
+    nome_v = st.text_input("Nome do Visitante")
+    if st.button("Registrar Visitante"):
+        if nome_v:
+            c = conn.cursor()
+            c.execute("INSERT INTO visitantes (data, nome, gf_id) VALUES (?, ?, ?)", (data_reuniao.strftime('%Y-%m-%d'), nome_v, gf_selecionado_id))
+            conn.commit()
+            st.success("Visitante registrado!")
 
-# ==========================================
-# ABA 3: RELATÓRIOS
-# ==========================================
+# --- DATAS ---
+with aba_datas:
+    st.subheader("Aniversariantes do Mês (Todos os GFs)")
+    hoje = date.today()
+    df_m = pd.read_sql_query("SELECT nome, data_nascimento, data_casamento, gf_id FROM membros", conn)
+    if not df_m.empty:
+        df_m['mes_nasc'] = df_m['data_nascimento'].apply(lambda x: int(x.split('/')[1]) if x else 0)
+        aniv = df_m[df_m['mes_nasc'] == hoje.month][['nome', 'data_nascimento']]
+        st.dataframe(aniv, hide_index=True, use_container_width=True)
+    else: st.write("Nenhum dado cadastrado.")
+
+# --- RELATÓRIO MENSAL (MELHORADO) ---
 with aba_relatorio:
-    st.subheader("Visualizar Dados Salvos")
-    conn = sqlite3.connect(DB_NAME)
+    st.subheader("📊 Acompanhamento Mensal")
+    col_ano, col_mes = st.columns(2)
+    ano_sel = col_ano.selectbox("Ano", [2025, 2026, 2027], index=1)
+    mes_sel = col_mes.selectbox("Mês", options=list(meses.keys()), format_func=lambda x: meses[x], index=hoje.month-1)
     
-    # Relatório de Presenças
-    st.markdown("#### Presenças Registradas")
-    query_presencas = """
-        SELECT p.data as Data, m.nome as Membro, p.status as Status 
-        FROM presencas p 
-        JOIN membros m ON p.membro_id = m.id 
-        ORDER BY p.data DESC, m.nome ASC
-    """
-    df_presencas = pd.read_sql_query(query_presencas, conn)
-    st.dataframe(df_presencas, use_container_width=True, hide_index=True)
+    data_filtro = f"{ano_sel}-{mes_sel:02d}%"
     
-    # Relatório de Visitantes
-    st.markdown("#### Visitantes Recebidos")
-    df_visitantes = pd.read_sql_query("SELECT data as Data, nome as Visitante FROM visitantes ORDER BY data DESC", conn)
-    st.dataframe(df_visitantes, use_container_width=True, hide_index=True)
-    conn.close()
+    st.markdown(f"#### Resumo de Reuniões - {meses[mes_sel]}")
+    df_reu = pd.read_sql_query("SELECT data, horario_inicio, horario_termino FROM reunioes WHERE gf_id = ? AND data LIKE ?", conn, params=(gf_selecionado_id, data_filtro))
+    if not df_reu.empty:
+        st.dataframe(df_reu.rename(columns={'data': 'Data', 'horario_inicio': 'Início', 'horario_termino': 'Término'}), hide_index=True)
+        
+        st.markdown("#### Frequência dos Membros")
+        query_frequencia = """
+            SELECT m.nome as Membro, p.data as Data, p.status as Status
+            FROM presencas p
+            JOIN membros m ON p.membro_id = m.id
+            WHERE p.gf_id = ? AND p.data LIKE ?
+            ORDER BY p.data ASC
+        """
+        df_freq = pd.read_sql_query(query_frequencia, conn, params=(gf_selecionado_id, data_filtro))
+        if not df_freq.empty:
+            # Pivotar para ver em formato de planilha (Datas nas colunas)
+            df_pivot = df_freq.pivot(index='Membro', columns='Data', values='Status').fillna('-')
+            st.table(df_pivot)
+    else:
+        st.warning("Nenhuma reunião registrada para este mês.")
 
-# ==========================================
-# ABA 4: ADMINISTRAÇÃO
-# ==========================================
+# --- ADMIN ---
 with aba_admin:
     if check_password():
-        col_header, col_logout = st.columns([4, 1])
-        with col_header:
-            st.subheader("Painel de Administração")
-        with col_logout:
-            if st.button("Sair"):
-                st.session_state.admin_logado = False
+        st.subheader("Configurações")
+        tarefa = st.radio("Ação", ["Novo GF", "Cadastrar Membro", "Listar Todos"], horizontal=True)
+        
+        if tarefa == "Novo GF":
+            n = st.text_input("Nome do GF")
+            l1 = st.text_input("Líder 1")
+            l2 = st.text_input("Líder 2")
+            if st.button("Salvar GF"):
+                c = conn.cursor()
+                c.execute("INSERT INTO gfs (nome, lider_1, lider_2) VALUES (?, ?, ?)", (n, l1, l2))
+                conn.commit()
                 st.rerun()
                 
-        menu_admin = st.radio("Selecione a ação:", ["Cadastrar Membros", "Gerenciar Membros", "Configurações do GF"], horizontal=True)
-        
-        if menu_admin == "Cadastrar Membros":
-            with st.form("form_novo_membro"):
-                nome_novo = st.text_input("Nome Completo")
-                estado_civil = st.selectbox("Estado Civil", list(estado_civil_dict.keys()), format_func=lambda x: estado_civil_dict[x])
-                
-                if st.form_submit_button("Salvar Membro"):
-                    if nome_novo.strip():
-                        conn = sqlite3.connect(DB_NAME)
-                        c = conn.cursor()
-                        c.execute("INSERT INTO membros (nome, estado_civil, gf_nome) VALUES (?, ?, ?)", 
-                                  (nome_novo.strip(), estado_civil, get_config("nome_gf")))
-                        conn.commit()
-                        conn.close()
-                        st.success(f"Membro {nome_novo} cadastrado!")
-                    else:
-                        st.error("O nome não pode estar vazio.")
-
-        elif menu_admin == "Gerenciar Membros":
-            conn = sqlite3.connect(DB_NAME)
-            df_membros_cadastrados = pd.read_sql_query("SELECT id, nome, estado_civil FROM membros", conn)
-            
-            if not df_membros_cadastrados.empty:
-                st.dataframe(df_membros_cadastrados, hide_index=True, use_container_width=True)
-                
-                # Excluir membro
-                st.markdown("---")
-                st.markdown("#### Remover Membro")
-                id_remover = st.number_input("Digite o ID do membro para remover", min_value=0, step=1)
-                if st.button("Excluir"):
+        elif tarefa == "Cadastrar Membro":
+            with st.form("add_m"):
+                gf_dest = st.selectbox("Vincular ao GF", options=list(gf_opcoes.keys()), format_func=lambda x: gf_opcoes[x])
+                nome_m = st.text_input("Nome Completo")
+                ec = st.selectbox("Estado Civil", list(estado_civil_dict.keys()), format_func=lambda x: estado_civil_dict[x])
+                dn = st.date_input("Nascimento", value=None, min_value=date(1940,1,1))
+                dc = st.date_input("Casamento", value=None) if ec in [1,3] else None
+                if st.form_submit_button("Cadastrar"):
                     c = conn.cursor()
-                    # Remove presenças associadas primeiro (integridade referencial)
-                    c.execute("DELETE FROM presencas WHERE membro_id = ?", (id_remover,))
-                    c.execute("DELETE FROM membros WHERE id = ?", (id_remover,))
+                    c.execute("INSERT INTO membros (nome, estado_civil, data_nascimento, data_casamento, gf_id) VALUES (?,?,?,?,?)",
+                              (nome_m, ec, dn.strftime('%d/%m/%Y') if dn else "", dc.strftime('%d/%m/%Y') if dc else "", gf_dest))
                     conn.commit()
-                    st.success("Membro removido.")
-                    st.rerun()
-            else:
-                st.info("Nenhum membro cadastrado.")
-            conn.close()
+                    st.success("Cadastrado!")
 
-        elif menu_admin == "Configurações do GF":
-            with st.form("form_config"):
-                novo_gf = st.text_input("Nome do Grupo Familiar", value=get_config("nome_gf"))
-                novo_lider = st.text_input("Nome do Líder", value=get_config("lider"))
-                novo_coord = st.text_input("Nome do Coordenador", value=get_config("coordenador"))
-                
-                if st.form_submit_button("Salvar Configurações"):
-                    set_config("nome_gf", novo_gf)
-                    set_config("lider", novo_lider)
-                    set_config("coordenador", novo_coord)
-                    st.success("Configurações atualizadas com sucesso!")
-                    st.rerun()
+conn.close()
