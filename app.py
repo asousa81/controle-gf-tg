@@ -1,29 +1,57 @@
 import streamlit as st
-from supabase import create_client, Client
+from services.supabase_client import get_supabase_client
 
-# Configuração da página
-st.set_page_config(page_title="Relatórios GFs", page_icon="📋", layout="wide")
+# 1. Configuração da Página (Sempre o primeiro comando)
+st.set_page_config(
+    page_title="Gestão de Grupos Familiares",
+    page_icon="🏠",
+    layout="wide"
+)
 
-# Função para conectar ao banco usando as chaves secretas
-@st.cache_resource
-def get_supabase_client() -> Client:
-    url = st.secrets["SUPABASE_URL"]
-    key = st.secrets["SUPABASE_KEY"]
-    return create_client(url, key)
-
-st.title("📋 Sistema de Relatórios de Grupos Familiares")
-st.markdown("---")
-
-# Teste de Conexão
+# 2. Conexão com o Banco
 try:
     supabase = get_supabase_client()
-    st.success("🟢 Conectado ao Supabase com sucesso!")
-    
-    # Faz uma pequena busca no banco apenas para provar que a comunicação está funcionando
-    res = supabase.table("grupos_familiares").select("id", count="exact").execute()
-    st.info(f"O banco de dados está respondendo perfeitamente! (Total de grupos cadastrados: {res.count})")
-    
+    conexao_ok = True
 except Exception as e:
-    st.error("🔴 Ops! Houve um erro de conexão.")
-    st.code(e)
-    st.warning("Verifique se as aspas e as chaves estão corretas lá na aba 'Secrets' do Streamlit.")
+    conexao_ok = False
+    st.error(f"Erro na conexão com o cofre de chaves: {e}")
+
+# 3. Cabeçalho Principal
+st.title("🏠 Portal de Gestão - Grupos Familiares")
+st.markdown("---")
+
+# 4. Conteúdo da Página Inicial
+col_info, col_status = st.columns([2, 1])
+
+with col_info:
+    st.markdown(f"""
+    ### Bem-vindo, Arthur!
+    Este é o sistema centralizado para o controle de frequência e cuidado dos GFs. 
+    A estrutura foi desenhada para facilitar o acompanhamento pastoral e a organização das métricas mensais.
+
+    **Como começar:**
+    1. Utilize o **menu lateral** para navegar.
+    2. Comece cadastrando as pessoas na aba **02 Pessoas**.
+    3. Em seguida, configure os grupos em **03 Grupos Familiares**.
+    4. O fluxo segue até a geração do relatório mensal consolidado.
+    """)
+
+with col_status:
+    st.subheader("Status do Sistema")
+    if conexao_ok:
+        st.success("Conexão com Supabase: Ativa")
+        
+        # Resumo rápido (Métricas)
+        try:
+            total_gfs = supabase.table("grupos_familiares").select("id", count="exact").execute().count
+            total_pessoas = supabase.table("pessoas").select("id", count="exact").execute().count
+            
+            st.metric("GFs Ativos", total_gfs)
+            st.metric("Pessoas no Sistema", total_pessoas)
+        except:
+            st.warning("Cadastre os primeiros dados para ver as métricas.")
+    else:
+        st.error("Conexão com Supabase: Inativa")
+
+st.divider()
+st.caption("Sistema desenvolvido para suporte à liderança e gestão de dados eclesiásticos.")
