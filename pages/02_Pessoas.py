@@ -1,5 +1,9 @@
 import streamlit as st
 import pandas as pd
+# VERIFICAÇÃO DE SEGURANÇA
+if "logado" not in st.session_state or not st.session_state.logado:
+    st.warning("⚠️ Por favor, faça login na página inicial para acessar este conteúdo.")
+    st.stop() # Interrompe a execução do restante da página
 from supabase import create_client, Client
 
 st.set_page_config(page_title="Pessoas", page_icon="👤", layout="wide")
