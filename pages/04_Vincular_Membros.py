@@ -16,7 +16,7 @@ def get_supabase_client():
 supabase = get_supabase_client()
 
 st.title("🔗 Gestão de Vínculos e Papéis")
-st.markdown("Organize a composição dos GFs definindo quem é Líder, Anfitrião ou Membro.")
+st.markdown("Organize a composição dos GFs definindo quem é Líder, Líder em Treinamento ou Membro.")
 
 # --- 1. FORMULÁRIO DE VÍNCULO ---
 with st.expander("➕ Adicionar Novo Vínculo", expanded=True):
@@ -35,7 +35,7 @@ with st.expander("➕ Adicionar Novo Vínculo", expanded=True):
                 g_sel = st.selectbox("Selecione o GF", res_g.data, format_func=lambda x: f"GF {x['numero']} - {x['nome']}")
             with col3:
                 # Agora com a coluna 'funcao' que criamos no SQL
-                funcao = st.selectbox("Função neste Grupo", ["MEMBRO", "LÍDER", "ANFITRIÃO", "CO-LÍDER", "VISITANTE"])
+                funcao = st.selectbox("Função neste Grupo", ["MEMBRO", "LÍDER", "LÍDER EM TREINAMENTO", "VISITANTE"])
 
             if st.button("Confirmar Vínculo", type="primary"):
                 try:
