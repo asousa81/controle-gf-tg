@@ -94,21 +94,53 @@ with tab_g:
 
 # --- ABA 3: GERENCIAR USUÁRIOS (COORDENADORES) ---
 with tab_u:
-    st.subheader("Contas de Acesso")
+    st.subheader("🔑 Gestão de Acessos")
+    
+    # --- FORMULÁRIO PARA NOVO COORDENADOR ---
+    with st.expander("➕ Cadastrar Novo Coordenador", expanded=False):
+        with st.form("form_novo_usuario", clear_on_submit=True):
+            new_u_nome = st.text_input("Nome Completo")
+            new_u_user = st.text_input("Usuário (Login)")
+            new_u_pass = st.text_input("Senha", type="password")
+            
+            if st.form_submit_button("Criar Acesso"):
+                if new_u_nome and new_u_user and new_u_pass:
+                    try:
+                        supabase.table("usuarios").insert({
+                            "nome": new_u_nome,
+                            "username": new_u_user,
+                            "password": new_u_pass, # Texto simples conforme sua estrutura atual
+                            "perfil": "COORDENADOR",
+                            "ativo": True
+                        }).execute()
+                        st.success(f"✅ Usuário '{new_u_user}' criado com sucesso!")
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"Erro: Talvez esse usuário já exista. ({e})")
+                else:
+                    st.warning("Preencha todos os campos.")
+
+    st.divider()
+
+    # --- EDIÇÃO DE COORDENADORES EXISTENTES ---
+    st.write("### 📝 Editar ou Inativar Coordenadores")
     res_u = supabase.table("usuarios").select("*").execute()
     if res_u.data:
-        u_escolhido = st.selectbox("Selecione o Usuário", res_u.data, format_func=lambda x: x['username'])
+        u_escolhido = st.selectbox("Selecione o Usuário", res_u.data, format_func=lambda x: f"{x['username']} ({x['nome']})")
         
-        with st.expander(f"🔐 Segurança: {u_escolhido['username']}"):
-            u_nome = st.text_input("Nome de Exibição", u_escolhido['nome'])
-            u_pass = st.text_input("Senha", u_escolhido['password'], type="password")
-            u_ativ = st.toggle("Acesso Ativo", value=u_escolhido.get('ativo', True))
+        with st.expander(f"🔐 Segurança e Status: {u_escolhido['username']}"):
+            col_a, col_b = st.columns(2)
+            with col_a:
+                u_nome_edit = st.text_input("Nome de Exibição", u_escolhido['nome'])
+                u_pass_edit = st.text_input("Senha", u_escolhido['password'], type="password")
+            with col_b:
+                u_ativ_edit = st.toggle("Acesso Ativo", value=u_escolhido.get('ativo', True))
             
-            if st.button("Salvar Usuário"):
+            if st.button("Salvar Alterações do Usuário"):
                 supabase.table("usuarios").update({
-                    "nome": u_nome,
-                    "password": u_pass,
-                    "ativo": u_ativ
+                    "nome": u_nome_edit,
+                    "password": u_pass_edit,
+                    "ativo": u_ativ_edit
                 }).eq("id", u_escolhido["id"]).execute()
                 st.success("Usuário atualizado!")
                 st.rerun()
