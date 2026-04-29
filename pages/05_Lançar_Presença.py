@@ -1,9 +1,13 @@
 import streamlit as st
 import pandas as pd
-from datetime import date, time
 from supabase import create_client
+from datetime import date
 
-# --- CONFIGURAÇÃO DA PÁGINA (PÚBLICA) ---
+# --- SEGURANÇA ---
+if "logado" not in st.session_state or not st.session_state.logado:
+    st.warning("⚠️ Por favor, faça login para acessar a chamada.")
+    st.stop()
+
 st.set_page_config(page_title="Lançar Presença", page_icon="📝", layout="wide")
 
 @st.cache_resource
@@ -12,80 +16,81 @@ def get_supabase_client():
 
 supabase = get_supabase_client()
 
-st.title("📝 Lançamento de Presença")
-st.info("Líder, preencha os dados da reunião do seu GF abaixo.")
+st.title("📝 Chamada do Grupo Familiar")
 
-# 1. SELEÇÃO DO GRUPO E DATA
-try:
-    # Busca apenas grupos ativos
-    res_g = supabase.table("grupos_familiares").select("id, numero, nome").eq("ativo", True).execute()
-    
-    if not res_g.data:
-        st.warning("Nenhum grupo encontrado no sistema.")
-        st.stop()
+# --- PASSO 1: SELEÇÃO DO GRUPO E DATA ---
+col_g, col_d = st.columns(2)
 
-    col_gf, col_dt = st.columns(2)
-    with col_gf:
-        grupo_sel = st.selectbox("Selecione o seu GF", res_g.data, format_func=lambda x: f"GF {x['numero']} - {x['nome']}")
-    with col_dt:
-        data_reuniao = st.date_input("Data da Reunião", date.today())
+with col_g:
+    res_g = supabase.table("grupos_familiares").select("id, numero, nome").eq("ativo", True).order("numero").execute()
+    g_opcoes = res_g.data if res_g.data else []
+    grupo_sel = st.selectbox("Selecione o GF", g_opcoes, format_func=lambda x: f"GF {x['numero']} - {x['nome']}")
 
-    # --- CAMPOS DE HORÁRIO E OBS ---
-    col_ini, col_fim = st.columns(2)
-    with col_ini:
-        h_inicio = st.time_input("Horário de Início", time(19, 30))
-    with col_fim:
-        h_fim = st.time_input("Horário de Término", time(21, 0))
+with col_d:
+    data_reuniao = st.date_input("Data da Reunião", value=date.today())
 
-    obs = st.text_area("Observações / Pedidos de Oração", placeholder="Escreva aqui como foi a reunião...")
+st.divider()
 
-    # 2. LISTA DE CHAMADA
-    if grupo_sel:
+# --- PASSO 2: LISTA DE CHAMADA DINÂMICA ---
+if grupo_sel:
+    # Busca membros vinculados ao grupo selecionado, trazendo a função
+    res_m = supabase.table("membros_grupo").select(
+        "pessoa_id, funcao, pessoas(nome_completo)"
+    ).eq("grupo_id", grupo_sel["id"]).eq("ativo", True).execute()
+
+    if res_m.data:
+        # Organiza os dados para facilitar (Líderes primeiro)
+        membros = []
+        for m in res_m.data:
+            membros.append({
+                "id": m["pessoa_id"],
+                "nome": m["pessoas"]["nome_completo"],
+                "funcao": m["funcao"]
+            })
+        
+        # Ordenação: Líderes, Co-Líderes, Anfitriões e depois Membros
+        ordem_funcao = {"LÍDER": 0, "CO-LÍDER": 1, "ANFITRIÃO": 2, "MEMBRO": 3, "VISITANTE": 4}
+        membros_ordenados = sorted(membros, key=lambda x: ordem_funcao.get(x["funcao"], 99))
+
+        st.subheader(f"👥 Membros de {grupo_sel['nome']}")
+        st.info("Marque quem esteve presente hoje:")
+
+        # Dicionário para armazenar o estado da presença (checkboxes)
+        presencas_marcadas = {}
+        
+        # Interface de lista de chamada
+        for m in membros_ordenados:
+            col_nome, col_presenca = st.columns([3, 1])
+            with col_nome:
+                # Destaque visual para funções de liderança
+                prefixo = "⭐ " if "LÍDER" in m["funcao"] else "🏠 " if "ANFITRIÃO" in m["funcao"] else "👤 "
+                st.write(f"{prefixo} **{m['nome']}** ({m['funcao']})")
+            with col_presenca:
+                presencas_marcadas[m["id"]] = st.checkbox("Presente", key=f"p_{m['id']}")
+
         st.divider()
-        st.subheader(f"Lista de Chamada")
-        
-        # Busca membros vinculados ao grupo
-        res_m = supabase.table("membros_grupo").select("pessoa_id, pessoas(nome_completo)").eq("grupo_id", grupo_sel["id"]).eq("ativo", True).execute()
-        
-        if not res_m.data:
-            st.warning("⚠️ Não encontramos membros vinculados a este grupo. Fale com o Coordenador.")
-        else:
-            # Filtro para evitar nomes duplicados
-            membros_unicos = {m["pessoa_id"]: m["pessoas"]["nome_completo"] for m in res_m.data if m["pessoas"]}
-            
-            presencas_dict = {}
-            cols = st.columns(3)
-            for i, (p_id, nome) in enumerate(membros_unicos.items()):
-                with cols[i % 3]:
-                    presencas_dict[p_id] = st.checkbox(nome, key=f"p_{p_id}")
+        obs = st.text_area("Anotações da Reunião (Pedidos de oração, observações)", placeholder="Opcional...")
 
-            st.divider()
-            
-            # 3. BOTÃO DE SALVAR (Aberto para todos)
-            if st.button("🚀 Salvar Relatório de Reunião", type="primary"):
-                # Registra a reunião
-                reuniao_res = supabase.table("reunioes").insert({
-                    "grupo_id": grupo_sel["id"],
-                    "data_reuniao": str(data_reuniao),
-                    "hora_inicio": str(h_inicio),
-                    "hora_fim": str(h_fim),
-                    "observacoes": obs
-                }).execute()
+        # --- PASSO 3: SALVAR NO BANCO ---
+        if st.button("🚀 Finalizar e Salvar Chamada", type="primary", use_container_width=True):
+            try:
+                lista_insert = []
+                for p_id, presente in presencas_marcadas.items():
+                    if presente:
+                        lista_insert.append({
+                            "data_reuniao": str(data_reuniao),
+                            "pessoa_id": p_id,
+                            "grupo_id": grupo_sel["id"],
+                            "observacao": obs
+                        })
                 
-                reuniao_id = reuniao_res.data[0]["id"]
-                
-                # Registra as presenças confirmadas
-                dados_presenca = [
-                    {"reuniao_id": reuniao_id, "pessoa_id": p_id, "presente": True}
-                    for p_id, marcado in presencas_dict.items() if marcado
-                ]
-                
-                if dados_presenca:
-                    supabase.table("presencas").insert(dados_presenca).execute()
-                
-                st.success("✨ Relatório enviado com sucesso! Deus abençoe seu GF.")
-                st.balloons()
-
-except Exception as e:
-    st.error("Ocorreu um erro ao carregar o formulário.")
-    st.info("Verifique se o banco de dados está online.")
+                if lista_insert:
+                    supabase.table("presencas").insert(lista_insert).execute()
+                    st.success(f"✅ Presença de {len(lista_insert)} pessoas registrada com sucesso!")
+                    st.balloons()
+                else:
+                    st.warning("Nenhuma presença foi marcada.")
+            except Exception as e:
+                st.error(f"Erro ao salvar presenças: {e}")
+    else:
+        st.warning("Este grupo ainda não possui membros vinculados. Vá em 'Vincular Membros' primeiro.")
