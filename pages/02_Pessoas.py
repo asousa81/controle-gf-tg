@@ -69,7 +69,6 @@ with tab_cad:
 with tab_edit:
     st.subheader("Gerenciar Cadastros")
     
-    # Busca a lista atualizada de pessoas
     res_p = supabase.table("pessoas").select("*").order("nome_completo").execute()
     
     if res_p.data:
@@ -84,28 +83,37 @@ with tab_edit:
                 c1, c2 = st.columns(2)
                 
                 with c1:
-                    e_nome = st.text_input("Nome Completo", value=p_sel['nome_completo'])
-                    e_tel = st.text_input("Telefone", value=p_sel['telefone'])
+                    e_nome = st.text_input("Nome Completo", value=p_sel.get('nome_completo', ''))
+                    e_tel = st.text_input("Telefone", value=p_sel.get('telefone', ''))
                     
-                    # Tratamento de datas nulas vindo do banco
-                    dn_val = date.fromisoformat(p_sel['data_nascimento']) if p_sel['data_nascimento'] else date(1990,1,1)
+                    dn_val = date.fromisoformat(p_sel['data_nascimento']) if p_sel.get('data_nascimento') else date(1990,1,1)
                     e_nasc = st.date_input("Data de Nascimento", value=dn_val)
                     
-                    e_gen = st.selectbox("Gênero", ["Masculino", "Feminino", "Outro"], 
-                                         index=["Masculino", "Feminino", "Outro"].index(p_sel.get('genero', 'Masculino')))
+                    # --- CORREÇÃO DO ERRO DE ÍNDICE (GÊNERO) ---
+                    lista_generos = ["Masculino", "Feminino", "Outro"]
+                    genero_banco = p_sel.get('genero')
+                    # Se não estiver na lista ou for Nulo, vira 'Masculino' por padrão
+                    if genero_banco not in lista_generos:
+                        genero_banco = "Masculino"
+                    
+                    e_gen = st.selectbox("Gênero", lista_generos, index=lista_generos.index(genero_banco))
 
                 with c2:
-                    opcoes_civil = ["Solteiro(a)", "Casado(a)", "Divorciado(a)", "Viúvo(a)"]
-                    idx_civil = opcoes_civil.index(p_sel['estado_civil']) if p_sel['estado_civil'] in opcoes_civil else 0
-                    e_est = st.selectbox("Estado Civil", opcoes_civil, index=idx_civil)
+                    # --- CORREÇÃO DO ERRO DE ÍNDICE (ESTADO CIVIL) ---
+                    lista_civil = ["Solteiro(a)", "Casado(a)", "Divorciado(a)", "Viúvo(a)"]
+                    civil_banco = p_sel.get('estado_civil')
+                    if civil_banco not in lista_civil:
+                        civil_banco = "Solteiro(a)"
+                        
+                    e_est = st.selectbox("Estado Civil", lista_civil, index=lista_civil.index(civil_banco))
                     
                     e_casa = None
                     if e_est == "Casado(a)":
-                        dc_val = date.fromisoformat(p_sel['data_casamento']) if p_sel['data_casamento'] else date.today()
+                        dc_val = date.fromisoformat(p_sel['data_casamento']) if p_sel.get('data_casamento') else date.today()
                         e_casa = st.date_input("Data de Casamento", value=dc_val)
                     
                     st.write("---")
-                    e_ativo = st.toggle("Membro Ativo", value=p_sel['ativo'])
+                    e_ativo = st.toggle("Membro Ativo", value=p_sel.get('ativo', True))
 
                 if st.form_submit_button("💾 Salvar Alterações"):
                     try:
