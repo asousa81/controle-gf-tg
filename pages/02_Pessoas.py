@@ -6,11 +6,12 @@ from datetime import date
 # --- SEGURANÇA ---
 if "logado" not in st.session_state or not st.session_state.logado:
     st.title("🔒 Acesso Restrito")
-    st.warning("Por favor, faça login na página inicial.")
+    st.warning("Por favor, faça login na página inicial para gerenciar membros.")
     if st.button("Ir para o Login"):
         st.switch_page("app.py")
     st.stop()
 
+# --- CONFIGURAÇÃO DA PÁGINA ---
 st.set_page_config(page_title="Gestão de Pessoas", page_icon="👥", layout="wide")
 
 @st.cache_resource
@@ -20,8 +21,9 @@ def get_supabase_client():
 supabase = get_supabase_client()
 
 st.title("👥 Gestão de Membros")
+st.markdown("Utilize esta página para cadastrar novos membros ou atualizar informações existentes.")
 
-# Abas para organizar o fluxo de trabalho
+# Definição das abas para organizar o fluxo
 tab_cad, tab_edit = st.tabs(["➕ Novo Cadastro", "📝 Editar / Inativar"])
 
 # --- ABA 1: NOVO CADASTRO ---
@@ -31,17 +33,17 @@ with tab_cad:
         
         with col1:
             nome = st.text_input("Nome Completo*")
-            whatsapp = st.text_input("WhatsApp / Telefone")
-            data_nasc = st.date_input("Data de Nascimento", value=date(1990, 1, 1))
+            whatsapp = st.text_input("WhatsApp / Telefone", placeholder="(41) 99999-9999")
+            data_nasc = st.date_input("Data de Nascimento", value=date(1990, 1, 1), min_value=date(1900, 1, 1))
             genero = st.selectbox("Gênero", ["Masculino", "Feminino", "Outro"])
 
         with col2:
             est_civil = st.selectbox("Estado Civil", ["Solteiro(a)", "Casado(a)", "Divorciado(a)", "Viúvo(a)"])
             
-            # Campo dinâmico: só aparece se for casado
+            # Campo dinâmico para Casamento
             data_casa = None
             if est_civil == "Casado(a)":
-                data_casa = st.date_input("Data de Casamento", value=date.today())
+                data_casa = st.date_input("Data de Casamento", value=date.today(), min_value=date(1900, 1, 1))
             
             bairro = st.text_input("Bairro (Opcional)")
 
@@ -63,12 +65,13 @@ with tab_cad:
                 except Exception as e:
                     st.error(f"Erro ao salvar: {e}")
             else:
-                st.warning("O nome é obrigatório.")
+                st.warning("O campo Nome Completo é obrigatório.")
 
 # --- ABA 2: EDITAR / INATIVAR ---
 with tab_edit:
     st.subheader("Gerenciar Cadastros")
     
+    # Busca a lista atualizada de pessoas
     res_p = supabase.table("pessoas").select("*").order("nome_completo").execute()
     
     if res_p.data:
@@ -86,31 +89,29 @@ with tab_edit:
                     e_nome = st.text_input("Nome Completo", value=p_sel.get('nome_completo', ''))
                     e_tel = st.text_input("Telefone", value=p_sel.get('telefone', ''))
                     
-                    dn_val = date.fromisoformat(p_sel['data_nascimento']) if p_sel.get('data_nascimento') else date(1990,1,1)
-                    e_nasc = st.date_input("Data de Nascimento", value=dn_val)
+                    # Tratamento robusto para datas
+                    dn_banco = p_sel.get('data_nascimento')
+                    dn_val = date.fromisoformat(dn_banco) if dn_banco else date(1990, 1, 1)
+                    e_nasc = st.date_input("Data de Nascimento", value=dn_val, min_value=date(1900, 1, 1))
                     
-                    # --- CORREÇÃO DO ERRO DE ÍNDICE (GÊNERO) ---
-                    lista_generos = ["Masculino", "Feminino", "Outro"]
-                    genero_banco = p_sel.get('genero')
-                    # Se não estiver na lista ou for Nulo, vira 'Masculino' por padrão
-                    if genero_banco not in lista_generos:
-                        genero_banco = "Masculino"
-                    
-                    e_gen = st.selectbox("Gênero", lista_generos, index=lista_generos.index(genero_banco))
+                    # Verificação de segurança para o índice do Gênero
+                    lista_gen = ["Masculino", "Feminino", "Outro"]
+                    gen_banco = p_sel.get('genero')
+                    idx_gen = lista_gen.index(gen_banco) if gen_banco in lista_gen else 0
+                    e_gen = st.selectbox("Gênero", lista_gen, index=idx_gen)
 
                 with c2:
-                    # --- CORREÇÃO DO ERRO DE ÍNDICE (ESTADO CIVIL) ---
-                    lista_civil = ["Solteiro(a)", "Casado(a)", "Divorciado(a)", "Viúvo(a)"]
-                    civil_banco = p_sel.get('estado_civil')
-                    if civil_banco not in lista_civil:
-                        civil_banco = "Solteiro(a)"
-                        
-                    e_est = st.selectbox("Estado Civil", lista_civil, index=lista_civil.index(civil_banco))
+                    # Verificação de segurança para o índice do Estado Civil
+                    lista_civ = ["Solteiro(a)", "Casado(a)", "Divorciado(a)", "Viúvo(a)"]
+                    civ_banco = p_sel.get('estado_civil')
+                    idx_civ = lista_civ.index(civ_banco) if civ_banco in lista_civ else 0
+                    e_est = st.selectbox("Estado Civil", lista_civ, index=idx_civ)
                     
                     e_casa = None
                     if e_est == "Casado(a)":
-                        dc_val = date.fromisoformat(p_sel['data_casamento']) if p_sel.get('data_casamento') else date.today()
-                        e_casa = st.date_input("Data de Casamento", value=dc_val)
+                        dc_banco = p_sel.get('data_casamento')
+                        dc_val = date.fromisoformat(dc_banco) if dc_banco else date.today()
+                        e_casa = st.date_input("Data de Casamento", value=dc_val, min_value=date(1900, 1, 1))
                     
                     st.write("---")
                     e_ativo = st.toggle("Membro Ativo", value=p_sel.get('ativo', True))
@@ -126,9 +127,9 @@ with tab_edit:
                             "data_casamento": str(e_casa) if e_casa else None,
                             "ativo": e_ativo
                         }).eq("id", p_sel["id"]).execute()
-                        st.success("Cadastro atualizado!")
+                        st.success("Cadastro atualizado com sucesso!")
                         st.rerun()
                     except Exception as e:
                         st.error(f"Erro na atualização: {e}")
     else:
-        st.info("Nenhum membro cadastrado.")
+        st.info("Nenhum membro cadastrado para edição.")
