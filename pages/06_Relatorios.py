@@ -1,14 +1,14 @@
 import streamlit as st
 import pandas as pd
 from supabase import create_client
-from datetime import datetime, timedelta
+from datetime import datetime
 
 # --- SEGURANÇA ---
 if "logado" not in st.session_state or not st.session_state.logado:
     st.warning("⚠️ Acesso restrito. Faça login para ver os relatórios.")
     st.stop()
 
-st.set_page_config(page_title="Relatórios de Presença", page_icon="📊", layout="wide")
+st.set_page_config(page_title="Relatório Mensal", page_icon="📈", layout="wide")
 
 @st.cache_resource
 def get_supabase_client():
@@ -16,88 +16,68 @@ def get_supabase_client():
 
 supabase = get_supabase_client()
 
-st.title("📊 BI de Frequência e Saúde dos GFs")
+st.title("📈 Relatório Mensal de Desempenho - GFs")
 
-# --- 1. FILTROS DE PESQUISA ---
+# --- 1. FILTROS MENSAIS ---
 with st.sidebar:
-    st.header("🔍 Filtros de Análise")
-    data_inicio = st.date_input("Início", value=datetime.now() - timedelta(days=30))
-    data_fim = st.date_input("Fim", value=datetime.now())
+    st.header("📅 Período de Análise")
+    ano_sel = st.selectbox("Ano", [2025, 2026], index=1)
+    mes_sel = st.selectbox("Mês", 
+                           ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", 
+                            "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"],
+                           index=datetime.now().month - 1)
     
-    res_g = supabase.table("grupos_familiares").select("id, numero, nome").order("numero").execute()
-    g_opcoes = [{"id": "TODOS", "nome": "Todos os Grupos"}] + res_g.data
-    grupo_sel = st.selectbox("Filtrar por Grupo", g_opcoes, format_func=lambda x: f"{x['nome']}")
+    # Mapeamento para filtro no banco
+    meses_map = {m: i+1 for i, m in enumerate(["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"])}
+    mes_num = meses_map[mes_sel]
 
 st.divider()
 
-# --- 2. BUSCA E TRATAMENTO DE DADOS ---
+# --- 2. BUSCA DE DADOS ---
 try:
-    query = supabase.table("presencas").select(
+    # Filtro SQL para o mês e ano selecionados
+    data_inicio = f"{ano_sel}-{mes_num:02d}-01"
+    # Lógica simples para o fim do mês
+    data_fim = f"{ano_sel}-{mes_num:02d}-31" if mes_num != 12 else f"{ano_sel}-12-31"
+
+    res = supabase.table("presencas").select(
         "data_reuniao, observacao, pessoas(nome_completo), grupos_familiares(numero, nome)"
-    ).gte("data_reuniao", str(data_inicio)).lte("data_reuniao", str(data_fim))
-    
-    if grupo_sel["id"] != "TODOS":
-        query = query.eq("grupo_id", grupo_sel["id"])
-        
-    res_p = query.execute()
+    ).gte("data_reuniao", data_inicio).lte("data_reuniao", data_fim).execute()
 
-    if res_p.data:
-        # 1. Criamos o DataFrame
-        df_raw = pd.DataFrame(res_p.data)
+    if res.data:
+        df = pd.json_normalize(res.data)
+        df.columns = ['Data', 'Observacao', 'Membro', 'GF_Num', 'GF_Nome']
+        df['GF'] = "GF " + df['GF_Num'].astype(str) + " - " + df['GF_Nome']
         
-        # 2. Achatamos as colunas aninhadas (pessoas e grupos_familiares)
-        # Usamos uma abordagem mais segura para evitar erros de índice
-        df = pd.json_normalize(res_p.data)
-        
-        # 3. Mapeamento explícito das colunas para evitar erros de ordem
-        # O json_normalize cria nomes como 'pessoas.nome_completo'
-        col_map = {
-            'data_reuniao': 'Data',
-            'observacao': 'Observação',
-            'pessoas.nome_completo': 'Membro',
-            'grupos_familiares.numero': 'GF_Num',
-            'grupos_familiares.nome': 'GF_Nome'
-        }
-        df = df.rename(columns=col_map)
+        # --- 3. MÉTRICAS CONSOLIDADAS ---
+        total_presentes = len(df)
+        reunioes_mes = df['Data'].nunique()
+        media_mensal = round(total_presentes / reunioes_mes, 1) if reunioes_mes > 0 else 0
 
-        # 4. FORÇAR TIPAGEM (Onde o erro acontecia)
-        # Garantimos que os nomes sejam strings e os números sejam strings para a concatenação do nome do GF
-        df['Membro'] = df['Membro'].astype(str)
-        df['GF_Nome'] = df['GF_Nome'].astype(str)
-        df['GF_Num'] = df['GF_Num'].astype(str)
-        
-        # Criamos a coluna combinada sem risco de conflito int vs str
-        df['GF'] = "GF " + df['GF_Num'] + " - " + df['GF_Nome']
-        
-        # --- 3. DASHBOARD DE MÉTRICAS ---
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            st.metric("Total de Presenças", len(df))
-        with col2:
-            reunioes = df['Data'].nunique()
-            st.metric("Total de Reuniões", reunioes)
-        with col3:
-            media = round(len(df) / reunioes, 1) if reunioes > 0 else 0
-            st.metric("Média por Reunião", media)
+        c1, c2, c3 = st.columns(3)
+        c1.metric("Presenças Totais (Mês)", total_presentes)
+        c2.metric("Total de Reuniões", reunioes_mes)
+        c3.metric("Média de Engajamento", f"{media_mensal} pessoas/GF")
 
         st.divider()
 
-        # --- 4. VISUALIZAÇÕES ---
-        tab_detalhe, tab_ranking = st.tabs(["📋 Lista Detalhada", "🏆 Ranking de Frequência"])
-
-        with tab_detalhe:
-            # Ordenação garantida por data
-            df_view = df[['Data', 'GF', 'Membro', 'Observação']].sort_values(by='Data', ascending=False)
-            st.dataframe(df_view, use_container_width=True, hide_index=True)
-
-        with tab_ranking:
-            st.write("### Frequência por Membro")
-            ranking = df['Membro'].value_counts().reset_index()
-            ranking.columns = ['Nome do Membro', 'Vezes Presente']
-            st.dataframe(ranking, use_container_width=True, hide_index=True)
+        # --- 4. VISÃO POR GRUPO (OBSERVAÇÕES COLETIVAS) ---
+        st.subheader(f"📝 Notas e Observações de {mes_sel}")
+        
+        # Agrupamos por Data e GF para pegar a observação única da reunião
+        df_obs = df.groupby(['Data', 'GF'])['Observacao'].first().reset_index()
+        
+        for idx, row in df_obs.sort_values(by='Data', ascending=False).iterrows():
+            with st.expander(f"🗓️ {row['Data']} | {row['GF']}"):
+                st.write("**Relatório da Reunião:**")
+                st.info(row['Observacao'] if row['Observacao'] else "Sem observações registradas.")
+                
+                # Lista quem estava presente nessa reunião específica
+                presentes = df[df['Data'] == row['Data']]['Membro'].tolist()
+                st.write(f"👥 **Presentes ({len(presentes)}):** {', '.join(presentes)}")
 
     else:
-        st.info("Nenhum registro de presença encontrado para este período.")
+        st.info(f"Nenhum registro encontrado para {mes_sel} de {ano_sel}.")
 
 except Exception as e:
-    st.error(f"Erro ao processar relatório: {e}")
+    st.error(f"Erro ao gerar relatório mensal: {e}")
