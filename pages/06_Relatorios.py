@@ -3,6 +3,7 @@ import pandas as pd
 from supabase import create_client
 from datetime import datetime
 import calendar
+from fpdf import FPDF  # Importação para geração do PDF
 
 # --- SEGURANÇA ---
 if "logado" not in st.session_state or not st.session_state.logado:
@@ -17,6 +18,72 @@ def get_supabase_client():
 
 supabase = get_supabase_client()
 
+# --- FUNÇÃO PARA GERAR PDF ---
+def exportar_pdf(grupo, mes_ano, lideres, colideres, df_membros, df_visit, obs_texto):
+    pdf = FPDF()
+    pdf.add_page()
+    pdf.set_font("Arial", "B", 16)
+    
+    # Título
+    pdf.cell(190, 10, f"RELATÓRIO DE ATIVIDADES - {mes_ano}", ln=True, align="C")
+    pdf.ln(5)
+    
+    # Cabeçalho (Estrutura de Tabela)
+    pdf.set_font("Arial", "B", 8)
+    pdf.set_fill_color(240, 242, 246)
+    
+    # Linha 1
+    pdf.cell(140, 5, "NOME DO GRUPO FAMILIAR", border=1, fill=True)
+    pdf.cell(50, 5, "Nº DO GF", border=1, fill=True, ln=True)
+    pdf.set_font("Arial", "", 10)
+    pdf.cell(140, 8, f"GF {grupo['numero']} - {grupo['nome']}", border=1)
+    pdf.cell(50, 8, f"{grupo['numero']}", border=1, ln=True)
+    
+    # Linha 2
+    pdf.set_font("Arial", "B", 8)
+    pdf.cell(95, 5, "LÍDER", border=1, fill=True)
+    pdf.cell(95, 5, "COORDENADOR", border=1, fill=True, ln=True)
+    pdf.set_font("Arial", "", 10)
+    pdf.cell(95, 8, f"{', '.join(lideres) if lideres else '-'}", border=1)
+    pdf.cell(95, 8, "Pr. Arthur e Pra. Simone", border=1, ln=True)
+    
+    # Linha 3
+    pdf.set_font("Arial", "B", 8)
+    pdf.cell(95, 5, "LÍDER EM TREINAMENTO (CO-LÍDER)", border=1, fill=True)
+    pdf.cell(95, 5, "PÚBLICO ALVO", border=1, fill=True, ln=True)
+    pdf.set_font("Arial", "", 10)
+    pdf.cell(95, 8, f"{', '.join(colideres) if colideres else '0'}", border=1)
+    pdf.cell(95, 8, f"{grupo.get('publico_alvo', 'Misto')}", border=1, ln=True)
+    
+    pdf.ln(10)
+    
+    # Tabela de Membros
+    pdf.set_font("Arial", "B", 12)
+    pdf.cell(0, 10, "Frequência de Membros", ln=True)
+    pdf.set_font("Arial", "B", 8)
+    
+    # Cabeçalho da Tabela
+    col_width = 190 / (len(df_membros.columns))
+    for col in df_membros.columns:
+        pdf.cell(col_width, 8, str(col), border=1, align="C", fill=True)
+    pdf.ln()
+    
+    # Dados da Tabela
+    pdf.set_font("Arial", "", 8)
+    for _, row in df_membros.iterrows():
+        for item in row:
+            pdf.cell(col_width, 8, str(item), border=1, align="C")
+        pdf.ln()
+    
+    # Observações
+    pdf.ln(10)
+    pdf.set_font("Arial", "B", 12)
+    pdf.cell(0, 10, "Observações do Mês", ln=True)
+    pdf.set_font("Arial", "", 10)
+    pdf.multi_cell(0, 8, obs_texto if obs_texto else "Nenhuma observação registrada.")
+    
+    return pdf.output()
+
 # --- 1. SELEÇÃO DE PARÂMETROS ---
 with st.sidebar:
     st.header("⚙️ Configurações")
@@ -29,7 +96,6 @@ with st.sidebar:
     grupo_sel = st.selectbox("Selecione o GF", res_g.data, format_func=lambda x: f"GF {x['numero']} - {x['nome']}")
 
 st.title("📄 Relatório de Atividades do Grupo Familiar")
-st.subheader(f"{mes_sel} de {ano_sel}")
 
 if grupo_sel:
     # --- 2. COLETA DE DADOS ---
@@ -38,46 +104,17 @@ if grupo_sel:
     data_inicio = f"{ano_sel}-{mes_num:02d}-01"
     data_fim = f"{ano_sel}-{mes_num:02d}-{ultimo_dia:02d}"
 
-    # Busca Membros e Presenças
     res_membros = supabase.table("membros_grupo").select("funcao, pessoa_id, pessoas(nome_completo)").eq("grupo_id", grupo_sel["id"]).execute()
     res_presencas = supabase.table("presencas").select("data_reuniao, observacao, pessoa_id").eq("grupo_id", grupo_sel["id"]).gte("data_reuniao", data_inicio).lte("data_reuniao", data_fim).execute()
 
-    # --- 3. CABEÇALHO ESTILIZADO (Igual ao modelo) ---
+    # Identificação de Lideranças
     lideres = [m['pessoas']['nome_completo'] for m in res_membros.data if m['funcao'] == 'LÍDER']
     colideres = [m['pessoas']['nome_completo'] for m in res_membros.data if m['funcao'] == 'CO-LÍDER']
-    
-    st.markdown(f"""
-    <style>
-        .relatorio-header {{ background-color: #f8f9fa; padding: 15px; border: 2px solid #2c3e50; border-radius: 4px; margin-bottom: 20px; font-family: sans-serif; }}
-        .label {{ font-weight: bold; text-transform: uppercase; font-size: 0.75em; color: #34495e; display: block; }}
-        .value {{ font-size: 1.1em; font-weight: 500; color: #000; padding-bottom: 8px; }}
-        .header-table {{ width: 100%; border-collapse: collapse; }}
-        .header-table td {{ border: 1px solid #bdc3c7; padding: 8px; }}
-    </style>
-    <div class="relatorio-header">
-        <table class="header-table">
-            <tr>
-                <td colspan="2"><span class="label">NOME DO GRUPO FAMILIAR:</span><div class="value">GF {grupo_sel['numero']} - {grupo_sel['nome']}</div></td>
-                <td style="width: 15%;"><span class="label">Nº DO GF:</span><div class="value">{grupo_sel['numero']}</div></td>
-            </tr>
-            <tr>
-                <td style="width: 50%;"><span class="label">LÍDER:</span><div class="value">{", ".join(lideres) if lideres else "Não definido"}</div></td>
-                <td colspan="2"><span class="label">COORDENADOR:</span><div class="value">Pr. Arthur e Pra. Simone</div></td>
-            </tr>
-            <tr>
-                <td><span class="label">LÍDER EM TREINAMENTO (CO-LÍDER):</span><div class="value">{", ".join(colideres) if colideres else "0"}</div></td>
-                <td colspan="2"><span class="label">PÚBLICO ALVO:</span><div class="value">{grupo_sel.get('publico_alvo', 'Misto')}</div></td>
-            </tr>
-        </table>
-    </div>
-    """, unsafe_allow_html=True)
 
-    # --- 4. GRADE DE PRESENÇAS ---
+    # --- 3. GRADE DE PRESENÇAS ---
     if res_presencas.data:
         df_p = pd.DataFrame(res_presencas.data)
         datas_reuniao = sorted(df_p['data_reuniao'].unique())
-        
-        # Mapeamento de datas para colunas do relatório (ex: 01/abr)
         colunas_datas = {d: datetime.strptime(d, '%Y-%m-%d').strftime('%d/%b') for d in datas_reuniao}
         
         lista_presenca = []
@@ -86,42 +123,35 @@ if grupo_sel:
             p_id = m['pessoa_id']
             tipo = "Visitante" if m['funcao'] == "VISITANTE" else "Membro"
             
-            row = {"Nome do Membro": nome, "Tipo": tipo}
+            row = {"Nome": nome, "Tipo": tipo}
             for data_orig, data_format in colunas_datas.items():
-                # Verifica presença no dataframe baixado
                 esta_presente = not df_p[(df_p['data_reuniao'] == data_orig) & (df_p['pessoa_id'] == p_id)].empty
                 row[data_format] = "C" if esta_presente else "-"
             lista_presenca.append(row)
 
-        df_final = pd.DataFrame(lista_presenca)
+        df_full = pd.DataFrame(lista_presenca)
+        df_membros_print = df_full[df_full['Tipo'] == 'Membro'].drop(columns=['Tipo'])
+        df_visit_print = df_full[df_full['Tipo'] == 'Visitante'].drop(columns=['Tipo'])
 
-        # Exibição das Tabelas
-        st.write("### 📋 Frequência de Membros")
-        st.dataframe(df_final[df_final['Tipo'] == 'Membro'].drop(columns=['Tipo']), use_container_width=True, hide_index=True)
+        # --- 4. EXIBIÇÃO NA TELA ---
+        st.write(f"### GF {grupo_sel['numero']} - {grupo_sel['nome']}")
+        st.dataframe(df_membros_print, use_container_width=True, hide_index=True)
         
-        df_visit = df_final[df_final['Tipo'] == 'Visitante']
-        if not df_visit.empty:
-            st.write("### 👣 Visitantes")
-            st.dataframe(df_visit.drop(columns=['Tipo']), use_container_width=True, hide_index=True)
+        # Consolidação de Observações para o PDF
+        df_obs = df_p.groupby('data_reuniao')['observacao'].first().reset_index().sort_values(by='data_reuniao')
+        obs_texto = "\n".join([f"Dia {datetime.strptime(r['data_reuniao'], '%Y-%m-%d').strftime('%d/%m')}: {r['observacao']}" 
+                               for _, r in df_obs.iterrows() if r['observacao'] and r['observacao'] != 'None'])
 
+        # --- 5. BOTÃO DE EXPORTAÇÃO ---
         st.divider()
-
-        # --- 5. OBSERVAÇÕES ORGANIZADAS POR DATA ---
-        st.write("### 📝 Observações e Notas das Reuniões")
+        pdf_bytes = exportar_pdf(grupo_sel, f"{mes_sel}/{ano_sel}", lideres, colideres, df_membros_print, df_visit_print, obs_texto)
         
-        # Agrupamos para garantir uma única nota por dia de reunião
-        df_obs = df_p.groupby('data_reuniao')['observacao'].first().reset_index()
-        # Ordenamos por data (do mais antigo para o mais novo, como em um relatório histórico)
-        df_obs = df_obs.sort_values(by='data_reuniao')
-
-        # Criamos um container para as observações parecerem uma caixa de texto única ou lista
-        for _, row in df_obs.iterrows():
-            if row['observacao'] and row['observacao'] != 'None':
-                data_f = datetime.strptime(row['data_reuniao'], '%Y-%m-%d').strftime('%d/%m/%Y')
-                st.markdown(f"**📅 Dia {data_f}:**")
-                st.info(row['observacao'])
+        st.download_button(
+            label="📥 Baixar Relatório em PDF",
+            data=pdf_bytes,
+            file_name=f"Relatorio_GF{grupo_sel['numero']}_{mes_sel}_{ano_sel}.pdf",
+            mime="application/pdf",
+            type="primary"
+        )
     else:
-        st.info("Nenhum registro de presença para este grupo no mês selecionado.")
-
-else:
-    st.info("Selecione um Grupo Familiar no menu lateral para gerar o relatório.")
+        st.info("Nenhum lançamento encontrado para este período.")
