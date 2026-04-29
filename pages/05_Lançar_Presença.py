@@ -3,11 +3,6 @@ import pandas as pd
 from supabase import create_client
 from datetime import date
 
-# --- SEGURANÇA ---
-if "logado" not in st.session_state or not st.session_state.logado:
-    st.warning("⚠️ Por favor, faça login para acessar a chamada.")
-    st.stop()
-
 st.set_page_config(page_title="Lançar Presença", page_icon="📝", layout="wide")
 
 @st.cache_resource
