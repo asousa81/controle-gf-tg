@@ -13,7 +13,7 @@ if "logado" not in st.session_state or not st.session_state.logado:
         st.switch_page("app.py")
     st.stop()
 
-st.set_page_config(page_title="Relatório de Atividades", page_icon="📝", layout="wide")
+st.set_page_config(page_title="Relatório Mensal", page_icon="📝", layout="wide")
 
 @st.cache_resource
 def get_supabase_client():
@@ -21,24 +21,23 @@ def get_supabase_client():
 
 supabase = get_supabase_client()
 
-# --- FUNÇÃO ROBUSTA PARA PDF ---
-def exportar_pdf(grupo, mes_ano, lideres, colideres, df_membros, obs_texto):
+# --- FUNÇÃO EXCLUSIVA PARA GERAÇÃO DO PDF ---
+def gerar_pdf_formatado(grupo, mes_ano, lideres, colideres, df_membros, obs_texto):
     pdf = FPDF()
     pdf.add_page()
     
-    # Função para limpar texto (evita erro de caracteres não suportados)
-    def c(texto):
+    def c(texto): # Helper para tratar caracteres latinos
         return str(texto).encode('latin-1', 'replace').decode('latin-1')
 
-    # Título Principal
+    # Cabeçalho Visual do PDF
     pdf.set_font("Arial", "B", 16)
     pdf.cell(190, 10, c(f"RELATÓRIO DE ATIVIDADES - {mes_ano}"), ln=True, align="C")
     pdf.ln(5)
     
-    # Cabeçalho Estilizado
     pdf.set_font("Arial", "B", 8)
     pdf.set_fill_color(240, 242, 246)
     
+    # Linhas do cabeçalho (Tabela cinza no PDF)
     pdf.cell(140, 5, c("NOME DO GRUPO FAMILIAR"), border=1, fill=True)
     pdf.cell(50, 5, c("Nº DO GF"), border=1, fill=True, ln=True)
     pdf.set_font("Arial", "", 10)
@@ -61,10 +60,9 @@ def exportar_pdf(grupo, mes_ano, lideres, colideres, df_membros, obs_texto):
     
     pdf.ln(10)
     
-    # Grade de Frequência
+    # Grade de Frequência no PDF
     pdf.set_font("Arial", "B", 12)
     pdf.cell(0, 10, c("Frequência de Membros"), ln=True)
-    
     pdf.set_font("Arial", "B", 8)
     num_cols = len(df_membros.columns)
     col_width = 190 / num_cols
@@ -79,7 +77,7 @@ def exportar_pdf(grupo, mes_ano, lideres, colideres, df_membros, obs_texto):
             pdf.cell(col_width, 8, c(item), border=1, align="C")
         pdf.ln()
     
-    # Observações
+    # Observações no PDF
     pdf.ln(10)
     pdf.set_font("Arial", "B", 12)
     pdf.cell(0, 10, c("Observações do Mês"), ln=True)
@@ -88,9 +86,9 @@ def exportar_pdf(grupo, mes_ano, lideres, colideres, df_membros, obs_texto):
     
     return bytes(pdf.output())
 
-# --- 1. FILTROS (SIDEBAR) ---
+# --- 1. INTERFACE DE FILTROS (SIDEBAR) ---
 with st.sidebar:
-    st.header("⚙️ Filtros")
+    st.header("🔍 Filtros")
     ano_sel = st.selectbox("Ano", [2025, 2026], index=1)
     meses = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", 
              "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"]
@@ -99,34 +97,30 @@ with st.sidebar:
     res_g = supabase.table("grupos_familiares").select("*").eq("ativo", True).order("numero").execute()
     grupo_sel = st.selectbox("Selecione o GF", res_g.data, format_func=lambda x: f"GF {x['numero']} - {x['nome']}")
 
-st.title("📄 Relatório de Atividades")
+st.title("📈 Relatório Mensal de Desempenho")
 
-# --- 2. LÓGICA PRINCIPAL ---
+# --- 2. PROCESSAMENTO E EXIBIÇÃO EM TELA ---
 if grupo_sel:
-    # Datas do mês
     mes_idx = meses.index(mes_sel) + 1
     ult_dia = calendar.monthrange(ano_sel, mes_idx)[1]
     d_ini, d_fim = f"{ano_sel}-{mes_idx:02d}-01", f"{ano_sel}-{mes_idx:02d}-{ult_dia:02d}"
 
-    # Busca Membros e Presenças
+    # Busca de dados
     res_membros = supabase.table("membros_grupo").select("funcao, pessoa_id, pessoas(nome_completo)").eq("grupo_id", grupo_sel["id"]).execute()
     res_presencas = supabase.table("presencas").select("*").eq("grupo_id", grupo_sel["id"]).gte("data_reuniao", d_ini).lte("data_reuniao", d_fim).execute()
 
     if res_membros.data and res_presencas.data:
-        # Extração de lideranças para o cabeçalho
+        # Extração de lideranças
         lideres = [m['pessoas']['nome_completo'] for m in res_membros.data if m['funcao'] == 'LÍDER']
         colideres = [m['pessoas']['nome_completo'] for m in res_membros.data if m['funcao'] == 'CO-LÍDER']
 
-        # Montagem do Header Visual (HTML)
-        st.markdown(f"""
-        <div style="background-color: #f8f9fa; padding: 15px; border: 1px solid #dee2e6; border-radius: 5px;">
-            <b>GRUPO:</b> GF {grupo_sel['numero']} - {grupo_sel['nome']} | <b>Nº:</b> {grupo_sel['numero']}<br>
-            <b>LÍDER:</b> {", ".join(lideres) if lideres else "N/A"} | <b>COORDENAÇÃO:</b> Pr. Arthur e Pra. Simone<br>
-            <b>PÚBLICO:</b> {grupo_sel.get('publico_alvo', 'Misto')}
-        </div>
-        """, unsafe_allow_html=True)
+        # Layout Simples em Tela (Métricas)
+        c1, c2, c3 = st.columns(3)
+        c1.metric("Membros Vinculados", len(res_membros.data))
+        c2.metric("Reuniões no Mês", len(set(p['data_reuniao'] for p in res_presencas.data)))
+        c3.metric("Público", grupo_sel.get('publico_alvo', 'Misto'))
 
-        # Processamento da Grade (Pivot)
+        # Pivot de Presenças para a Tabela
         df_p = pd.DataFrame(res_presencas.data)
         datas = sorted(df_p['data_reuniao'].unique())
         col_datas = {d: datetime.strptime(d, '%Y-%m-%d').strftime('%d/%b') for d in datas}
@@ -142,29 +136,37 @@ if grupo_sel:
             lista_final.append(row)
 
         df_resumo = pd.DataFrame(lista_final)
-        df_membros_print = df_resumo[df_resumo['Tipo'] == 'Membro'].drop(columns=['Tipo'])
+        df_exibir = df_resumo[df_resumo['Tipo'] == 'Membro'].drop(columns=['Tipo'])
 
-        st.write("### 📋 Frequência")
-        st.dataframe(df_membros_print, use_container_width=True, hide_index=True)
+        st.write(f"### Grade de Frequência - {mes_sel}")
+        st.dataframe(df_exibir, use_container_width=True, hide_index=True)
 
-        # Observações organizadas
+        # Observações em Tela (Lista Simples)
+        st.write("### Observações Registradas")
         df_obs = df_p.groupby('data_reuniao')['observacao'].first().reset_index().sort_values('data_reuniao')
-        obs_texto = "\n".join([f"Dia {datetime.strptime(r['data_reuniao'], '%Y-%m-%d').strftime('%d/%m')}: {r['observacao']}" 
-                               for _, r in df_obs.iterrows() if r['observacao'] and r['observacao'] != 'None'])
+        obs_texto = ""
+        for _, r in df_obs.iterrows():
+            if r['observacao'] and r['observacao'] != 'None':
+                data_f = datetime.strptime(r['data_reuniao'], '%Y-%m-%d').strftime('%d/%m')
+                st.info(f"**Dia {data_f}:** {r['observacao']}")
+                obs_texto += f"Dia {data_f}: {r['observacao']}\n"
 
         st.divider()
         
-        # Geração do PDF
+        # --- 3. BOTÃO DE DOWNLOAD DO PDF (FORMATADO) ---
         try:
-            pdf_bytes = exportar_pdf(grupo_sel, f"{mes_sel}/{ano_sel}", lideres, colideres, df_membros_print, obs_texto)
+            pdf_bytes = gerar_pdf_formatado(grupo_sel, f"{mes_sel}/{ano_sel}", lideres, colideres, df_exibir, obs_texto)
             st.download_button(
-                label="📥 Baixar Relatório Mensal em PDF",
+                label="📥 Baixar Relatório Oficial em PDF",
                 data=pdf_bytes,
                 file_name=f"Relatorio_{mes_sel}_{grupo_sel['numero']}.pdf",
                 mime="application/pdf",
-                type="primary"
+                type="primary",
+                use_container_width=True
             )
         except Exception as e:
-            st.error(f"Erro ao gerar PDF: {e}")
+            st.error(f"Erro ao preparar PDF: {e}")
     else:
-        st.info("Sem dados suficientes para gerar o relatório deste período.")
+        st.info("Aguardando lançamentos de presença para gerar os dados do mês.")
+else:
+    st.info("Selecione um Grupo Familiar para visualizar o desempenho.")
