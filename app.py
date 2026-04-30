@@ -1,17 +1,17 @@
 import streamlit as st
 from supabase import create_client
 
-# 1. Configuração da Página (Sempre no topo)
-st.set_page_config(page_title="Gestão CCM", page_icon="⛪", layout="centered")
+# 1. CONFIGURAÇÃO DA PÁGINA (Sempre a primeira linha de comando Streamlit)
+st.set_page_config(page_title="Gestão GF's", page_icon="⛪", layout="centered")
 
-# 2. Conexão com Supabase
+# 2. CONEXÃO COM SUPABASE
 @st.cache_resource
 def get_supabase_client():
     return create_client(st.secrets["SUPABASE_URL"], st.secrets["SUPABASE_KEY"])
 
 supabase = get_supabase_client()
 
-# 3. Inicialização Segura das Variáveis de Sessão
+# 3. INICIALIZAÇÃO "BULLETPROOF" DO ESTADO (Evita AttributeError)
 if "logado" not in st.session_state:
     st.session_state.logado = False
 if "nome_usuario" not in st.session_state:
@@ -21,55 +21,61 @@ if "usuario_id" not in st.session_state:
 if "perfil" not in st.session_state:
     st.session_state.perfil = "LIDER"
 
-# 4. Fluxo de Autenticação e Navegação
+# 4. FLUXO DE AUTENTICAÇÃO
 if not st.session_state.logado:
-    # --- TELA DE LOGIN ---
-    st.title("🔐 Portal de Gestão CCM")
+    st.title("🔐 Portal de Gestão GF's")
+    st.write("Bem-vindo ao sistema de gestão de Grupos Familiares.")
+    
     with st.form("login_form"):
-        usuario_input = st.text_input("Usuário").lower()
+        usuario_input = st.text_input("Usuário").lower().strip()
         senha_input = st.text_input("Senha", type="password")
-        if st.form_submit_button("Entrar", use_container_width=True):
+        btn_login = st.form_submit_button("Entrar", use_container_width=True)
+        
+        if btn_login:
+            # Busca o usuário na tabela 'pessoas'
             res = supabase.table("pessoas").select("*").eq("usuario", usuario_input).eq("senha", senha_input).execute()
+            
             if res.data:
                 user = res.data[0]
                 st.session_state.logado = True
                 st.session_state.usuario_id = user['id']
                 st.session_state.nome_usuario = user['nome_completo']
-                st.session_state.perfil = user.get('perfil', 'LIDER')
+                st.session_state.perfil = user.get('perfil', 'LIDER') # Garante o perfil ADMIN ou LIDER
                 st.rerun()
             else:
                 st.error("❌ Usuário ou senha incorretos.")
 else:
-    # --- ÁREA LOGADA (Onde o erro de indentação aconteceu) ---
-    # Definimos as referências das páginas
-    pg_lancamento = st.Page("pages/04_Lancamentos.py", title="Lançar Presença", icon="📝")
+    # --- ÁREA LOGADA COM NAVEGAÇÃO DINÂMICA ---
+    
+    # Definição das Páginas (Mapeadas conforme sua estrutura de pastas atual)
+    pg_gerenciamento = st.Page("pages/00_Gerenciamento.py", title="Dashboard Geral", icon="🏠")
+    pg_pessoas = st.Page("pages/02_Pessoas.py", title="Gestão de Pessoas", icon="👥")
+    pg_grupos = st.Page("pages/03_Grupos_Familiares.py", title="Grupos Familiares", icon="⚙️")
+    pg_vincular = st.Page("pages/04_Vincular_Membros.py", title="Vincular Membros", icon="🔗")
+    
+    # Páginas Operacionais (Acesso para Líderes e Admins)
+    pg_lancamento = st.Page("pages/05_Lancamento_Presenca.py", title="Lançar Presença", icon="📝")
     pg_edicao = st.Page("pages/05_Editar_Presenca.py", title="Editar Presença", icon="✏️")
     pg_relatorios = st.Page("pages/06_Relatorios.py", title="Relatórios", icon="📊")
-    
-    # Páginas de Administração (Dashboard e Configurações)
-    pg_dashboard = st.Page("pages/01_Dashboard.py", title="Dashboard Geral", icon="🏠")
-    pg_membros = st.Page("pages/02_Membros.py", title="Gestão de Membros", icon="👥")
-    pg_grupos = st.Page("pages/03_Grupos.py", title="Configurar GFs", icon="⚙️")
 
-    # Controle de Navegação por Perfil
+    # Lógica de Visibilidade: Arthur e Simone (ADMIN) vs Líderes
     if st.session_state.perfil == 'ADMIN':
-        # Arthur e Simone Sousa veem tudo
         pg = st.navigation({
-            "Administração": [pg_dashboard, pg_membros, pg_grupos],
+            "Administração": [pg_gerenciamento, pg_pessoas, pg_grupos, pg_vincular],
             "Operacional": [pg_lancamento, pg_edicao, pg_relatorios]
         })
     else:
-        # Líderes de Curitiba veem apenas o operacional
         pg = st.navigation({
             "Minha Gestão": [pg_lancamento, pg_edicao, pg_relatorios]
         })
 
-    # Executa a página selecionada no menu
+    # Renderiza a página selecionada
     pg.run()
     
-    # Botão de Logout no final do Menu Lateral
+    # Botão de Logout no Menu Lateral
     with st.sidebar:
         st.divider()
-        if st.button("🚪 Sair do Sistema"):
+        st.write(f"Logado como: **{st.session_state.nome_usuario}**")
+        if st.button("🚪 Sair do Sistema", use_container_width=True):
             st.session_state.logado = False
             st.rerun()
