@@ -146,5 +146,7 @@ if grupo_sel:
                 st.error(f"Erro ao salvar: {e}")
 
     with col_btn_exit:
+        # Trocamos o rerun pela navegação direta para a sua tela de Início
         if st.button("🏠 Sair", use_container_width=True):
-            st.rerun() # Volta para a home devido à lógica do app.py
+            st.switch_page("pages/00_Boas_Vindas.py")[cite: 1]
+
