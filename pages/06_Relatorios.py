@@ -183,7 +183,7 @@ if grupo_sel:
 </div>
 <div class="header-grid">
 <div>
-<div class="info-item"><span class="label">NOME DO GRUPO FAMILIAR</span><span class="value">GF {grupo_sel['numero']} - {grupo_sel['nome']}</span></div>
+<div class="info-item"><span class="label">NOME DO GRUPO FAMILIAR</span><span class="value">{grupo_sel['nome']}</span></div>
 <div class="info-item"><span class="label">LIDERANÇA</span><span class="value">{", ".join(lideres) if lideres else "N/A"}</span></div>
 <div class="info-item"><span class="label">PÚBLICO ALVO</span><span class="value">{grupo_sel.get('publico_alvo', 'Misto')}</span></div>
 </div>
