@@ -2,7 +2,7 @@ import streamlit as st
 from supabase import create_client
 
 # 1. CONFIGURAÇÃO DA PÁGINA
-st.set_page_config(page_title="Gestão CCM", page_icon="⛪", layout="centered")
+st.set_page_config(page_title="Gestão GF's", page_icon="⛪", layout="centered")
 
 # 2. CONEXÃO COM SUPABASE
 @st.cache_resource
@@ -56,7 +56,7 @@ else:
     pg_vincular = st.Page("pages/04_Vincular_Membros.py", title="Vincular Membros", icon="🔗")
     
     # Operacional
-    pg_lancamento = st.Page("pages/05_Lancamento_Presenca.py", title="Lançar Presença", icon="📝")
+    pg_lancamento = st.Page("pages/05_Lancar_Presenca.py", title="Lançar Presença", icon="📝")
     pg_edicao = st.Page("pages/05_Editar_Presenca.py", title="Editar Presença", icon="✏️")
     pg_relatorios = st.Page("pages/06_Relatorios.py", title="Relatórios", icon="📈")
 
