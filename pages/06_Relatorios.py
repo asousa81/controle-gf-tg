@@ -15,12 +15,12 @@ def get_supabase_client():
 
 supabase = get_supabase_client()
 
-# --- 3. SEGURANÇA ---
+# --- 3. SEGURANÇA: BLOQUEIO DE ACESSO DIRETO ---
 if "logado" not in st.session_state or not st.session_state.logado:
     st.warning("⚠️ Acesso restrito. Faça login na página inicial.")
     st.stop()
 
-# --- 4. FILTRO DE DADOS (LOGICA DE ACESSO) ---
+# --- 4. FILTRO DE DADOS POR PERFIL ---
 usuario_id = st.session_state.get('usuario_id')
 perfil = st.session_state.get('perfil')
 
@@ -31,13 +31,13 @@ else:
     res_g = supabase.table("membros_grupo").select("grupo_id, grupos_familiares(*)").eq("pessoa_id", usuario_id).filter("funcao", "in", '("LÍDER", "CO-LÍDER")').execute()
     g_opcoes = [item['grupos_familiares'] for item in res_g.data] if res_g.data else []
 
-# --- 5. FUNÇÃO PREMIUM PARA GERAÇÃO DO PDF (AGORA COM VISITANTES) ---
+# --- 5. FUNÇÃO PREMIUM PARA GERAÇÃO DO PDF (AGORA COM VISITANTES POR DATA) ---
 def gerar_pdf_oficial(grupo, mes_ano, lideres, colideres, df_membros, df_visitantes, obs_texto, taxa_engaj, mapa_horarios):
     pdf = FPDF()
     pdf.add_page()
     def c(texto): return str(texto).encode('latin-1', 'replace').decode('latin-1')
 
-    # Cabeçalho Principal
+    # Cabeçalho Principal (Original Arthur)
     pdf.set_fill_color(118, 75, 162) 
     pdf.set_text_color(255, 255, 255)
     pdf.set_font("Arial", "B", 14)
@@ -52,8 +52,9 @@ def gerar_pdf_oficial(grupo, mes_ano, lideres, colideres, df_membros, df_visitan
     pdf.cell(63, 10, c(f" TOTAL DE MEMBROS: {len(df_membros)}"), border=1, fill=True)
     pdf.cell(64, 10, c(f" VISITANTES: {len(df_visitantes)}"), border=1, fill=True, ln=True)
     
-    # Grade de Informações
     pdf.ln(5)
+    
+    # Grade de Informações (Original Arthur)
     pdf.set_font("Arial", "B", 8)
     pdf.set_fill_color(230, 230, 230)
     pdf.cell(130, 5, c("NOME DO GRUPO FAMILIAR"), border=1, fill=True)
@@ -69,7 +70,7 @@ def gerar_pdf_oficial(grupo, mes_ano, lideres, colideres, df_membros, df_visitan
     pdf.cell(95, 8, c(", ".join(lideres) if lideres else "N/A"), border=1)
     pdf.cell(95, 8, c("Pr. Arthur e Pra. Simone"), border=1, ln=True)
 
-    # Tabela de Frequência (Cabeçalho duplo e horários)[cite: 1]
+    # Tabela de Frequência (Original Arthur)
     pdf.ln(5)
     pdf.set_font("Arial", "B", 11)
     pdf.cell(0, 10, c("Frequência de Membros"), ln=True)
@@ -82,20 +83,10 @@ def gerar_pdf_oficial(grupo, mes_ano, lideres, colideres, df_membros, df_visitan
     pdf.set_fill_color(240, 240, 240)
     pdf.cell(col_num_w, 10, "Nº", border=1, align="C", fill=True)
     pdf.cell(col_nome_w, 10, "Membro", border=1, align="C", fill=True)
-    
     for col in df_membros.columns[2:]:
-        x, y = pdf.get_x(), pdf.get_y()
-        pdf.rect(x, y, col_data_w, 10, 'FD')
-        pdf.set_xy(x, y + 1)
-        pdf.cell(col_data_w, 4, c(col), align="C")
-        pdf.set_xy(x, y + 5)
-        pdf.set_font("Arial", "", 6)
-        horario = mapa_horarios.get(col, "20:00-21:30")
-        pdf.cell(col_data_w, 4, c(horario), align="C")
-        pdf.set_xy(x + col_data_w, y)
-        pdf.set_font("Arial", "B", 7)
-    
-    pdf.ln(10)
+        pdf.cell(col_data_w, 10, c(col), border=1, align="C", fill=True)
+    pdf.ln()
+
     pdf.set_font("Arial", "", 8)
     for _, row in df_membros.iterrows():
         pdf.cell(col_num_w, 8, c(row.iloc[0]), border=1, align="C")
@@ -104,33 +95,29 @@ def gerar_pdf_oficial(grupo, mes_ano, lideres, colideres, df_membros, df_visitan
             pdf.cell(col_data_w, 8, c(val), border=1, align="C")
         pdf.ln()
 
-    # --- INSERÇÃO DOS VISITANTES NO PDF ---
+    # --- SEÇÃO DE VISITANTES NO PDF (Similar às Notas Pastorais) ---
     if not df_visitantes.empty:
         pdf.ln(5)
         pdf.set_font("Arial", "B", 11)
-        pdf.cell(0, 10, c("Visitantes Registrados"), ln=True)
-        pdf.set_font("Arial", "B", 8)
-        pdf.set_fill_color(240, 240, 240)
-        pdf.cell(25, 8, c("Data"), border=1, fill=True)
-        pdf.cell(60, 8, c("Nome"), border=1, fill=True)
-        pdf.cell(60, 8, c("Quem Convidou"), border=1, fill=True)
-        pdf.cell(45, 8, c("Telefone"), border=1, fill=True, ln=True)
-        pdf.set_font("Arial", "", 8)
-        for _, v in df_visitantes.iterrows():
-            pdf.cell(25, 8, c(v['data_reuniao']), border=1)
-            pdf.cell(60, 8, c(v['nome_visitante']), border=1)
-            pdf.cell(60, 8, c(v['quem_convidou']), border=1)
-            pdf.cell(45, 8, c(v['telefone_visitante']), border=1, ln=True)
+        pdf.cell(0, 10, c("Visitantes no Período"), ln=True)
+        pdf.set_font("Arial", "", 9)
+        v_texto = ""
+        for d in sorted(df_visitantes['data_reuniao'].unique()):
+            vits = df_visitantes[df_visitantes['data_reuniao'] == d]
+            dt_f = datetime.strptime(d, '%Y-%m-%d').strftime('%d/%m')
+            for _, v in vits.iterrows():
+                v_texto += f"• {dt_f}: {v['nome_visitante']} (Convidado por: {v['quem_convidou']})\n"
+        pdf.multi_cell(0, 7, c(v_texto), border=1)
 
     pdf.ln(5)
     pdf.set_font("Arial", "B", 11)
     pdf.cell(0, 10, c("Observações Pastorais"), ln=True)
     pdf.set_font("Arial", "", 9)
-    pdf.multi_cell(0, 7, c(obs_texto if obs_texto else "Nenhuma observação."), border=1)
+    pdf.multi_cell(0, 7, c(obs_texto if obs_texto else "Nenhuma observação registrada."), border=1)
     
     return bytes(pdf.output())
 
-# --- 6. CSS (SEU ESTILO PREMIUM)[cite: 1] ---
+# --- 6. CSS (SEU ESTILO ORIGINAL PRESERVADO)[cite: 1] ---
 st.markdown("""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
@@ -146,7 +133,8 @@ html, body, [class*="css"] { font-family: 'Inter', sans-serif; }
 .badge-c { background-color: #d4edda; color: #155724; padding: 4px 10px; border-radius: 6px; font-weight: 700; }
 .badge-f { background-color: #f8d7da; color: #721c24; padding: 4px 10px; border-radius: 6px; font-weight: 700; }
 .time-sub { font-size: 0.65rem; color: #777; display: block; font-weight: 400; margin-top: 4px; }
-.obs-section { background: #fdfdfd; border-radius: 8px; padding: 20px; margin-top: 25px; border-left: 5px solid #764ba2; }
+.obs-section { background: #fdfdfd; border-radius: 8px; padding: 20px; margin-top: 15px; border-left: 5px solid #764ba2; }
+.visitor-section { background: #f8f9ff; border-radius: 8px; padding: 20px; margin-top: 15px; border-left: 5px solid #667eea; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -159,7 +147,6 @@ with st.sidebar:
     if g_opcoes:
         grupo_sel = st.selectbox("Selecione o GF", g_opcoes, format_func=lambda x: f"GF {x['numero']} - {x['nome']}")
     else:
-        st.error("Nenhum grupo vinculado.")
         st.stop()
 
 st.title("📈 Analytics e Desempenho")
@@ -183,7 +170,7 @@ if grupo_sel:
         reunioes_m = len(set(df_p_calc['data_reuniao'])) if not df_p_calc.empty else 0
         total_m = len([m for m in res_membros.data if m['funcao'] != 'VISITANTE'])
         
-        # Cards de Métricas em 4 Colunas (Agora com Visitantes)[cite: 1]
+        # Cards de Métricas (4 Colunas)[cite: 1]
         c1, c2, c3, c4 = st.columns(4)
         with c1: st.markdown(f'<div class="metric-card"><small>MEMBROS</small><h2>{total_m}</h2></div>', unsafe_allow_html=True)
         with c2: st.markdown(f'<div class="metric-card"><small>ENCONTROS</small><h2>{reunioes_m}</h2></div>', unsafe_allow_html=True)
@@ -192,6 +179,7 @@ if grupo_sel:
             taxa = (len(df_p_calc)/(total_m * reunioes_m)*100) if (total_m * reunioes_m) > 0 else 0
             st.markdown(f'<div class="metric-card"><small>% ENGAJ</small><h2>{taxa:.1f}%</h2></div>', unsafe_allow_html=True)
 
+        # Início do Paper Container (Estilo Arthur)[cite: 1]
         st.markdown('<div class="paper-container">', unsafe_allow_html=True)
         st.markdown(f"""
             <div style="text-align: center; margin-bottom: 30px;">
@@ -210,7 +198,7 @@ if grupo_sel:
             </div>
         """, unsafe_allow_html=True)
 
-        # TABELA DE MEMBROS[cite: 1]
+        # Tabela de Membros[cite: 1]
         if not df_p_calc.empty:
             datas_orig = sorted(df_p_calc['data_reuniao'].unique())
             df_reunioes = df_p_calc.groupby('data_reuniao').first().reset_index()
@@ -218,17 +206,16 @@ if grupo_sel:
             mapa_horarios = {}
             for d in datas_orig:
                 info_r = df_reunioes[df_reunioes['data_reuniao'] == d].iloc[0]
-                h_i, h_f = str(info_r.get('horario_inicio', '20:00'))[:5], str(info_r.get('horario_termino', '21:30'))[:5]
                 dt_fmt = datetime.strptime(d, '%Y-%m-%d').strftime('%d/%b')
-                mapa_horarios[dt_fmt] = f"{h_i}-{h_f}"
-                table_html += f"<th>{dt_fmt}<br><span class='time-sub'>{h_i}-{h_f}</span></th>"
+                mapa_horarios[dt_fmt] = f"{str(info_r.get('horario_inicio', '20:00'))[:5]}-{str(info_r.get('horario_termino', '21:30'))[:5]}"
+                table_html += f"<th>{dt_fmt}<br><span class='time-sub'>{mapa_horarios[dt_fmt]}</span></th>"
             table_html += "</tr></thead><tbody>"
             lista_pdf = []
             count = 1
             for m in res_membros.data:
                 if m['funcao'] == 'VISITANTE': continue
                 row_pdf = {"Nº": f"{count:02d}", "Membro": m['pessoas']['nome_completo']}
-                table_html += f"<tr><td>{count:02d}</td><td style='text-align:left;'>{m['pessoas']['nome_completo']}</td>"
+                table_html += f"<tr><td>{count:02d}</td><td style='text-align:left; font-weight:600;'>{m['pessoas']['nome_completo']}</td>"
                 for d in datas_orig:
                     dt_f = datetime.strptime(d, '%Y-%m-%d').strftime('%d/%b')
                     p = not df_p_calc[(df_p_calc['data_reuniao'] == d) & (df_p_calc['pessoa_id'] == m['pessoa_id'])].empty
@@ -237,16 +224,19 @@ if grupo_sel:
                 table_html += "</tr>"
                 lista_pdf.append(row_pdf)
                 count += 1
-            table_html += "</tbody></table>"
-            st.markdown(table_html, unsafe_allow_html=True)
+            st.markdown(table_html + "</tbody></table>", unsafe_allow_html=True)
 
-        # --- INSERÇÃO DOS VISITANTES NA TELA (RESOLVENDO SEU ERRO) ---
+        # --- SEÇÃO DE VISITANTES (ESTILO ANOTAÇÕES PASTORAIS) ---
         if not df_v_calc.empty:
-            st.markdown('<br><span class="label">Novos Visitantes no Período</span>', unsafe_allow_html=True)
-            # Tabela limpa e direta com os dados que você pediu[cite: 1]
-            st.table(df_v_calc[['data_reuniao', 'nome_visitante', 'quem_convidou', 'telefone_visitante']])
+            st.markdown('<div class="visitor-section"><span class="label">Visitantes no Período</span>', unsafe_allow_html=True)
+            for d in sorted(df_v_calc['data_reuniao'].unique()):
+                vits = df_v_calc[df_v_calc['data_reuniao'] == d]
+                dt_f = datetime.strptime(d, '%Y-%m-%d').strftime('%d/%m')
+                for _, v in vits.iterrows():
+                    st.write(f"**• {dt_f}:** {v['nome_visitante']} — *Convidado por: {v['quem_convidou']}*")
+            st.markdown('</div>', unsafe_allow_html=True)
 
-        # NOTAS PASTORAIS[cite: 1]
+        # SEÇÃO DE NOTAS PASTORAIS[cite: 1]
         st.markdown('<div class="obs-section"><span class="label">Notas Pastorais</span>', unsafe_allow_html=True)
         obs_pdf = ""
         if not df_p_calc.empty:
