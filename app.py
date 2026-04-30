@@ -54,7 +54,7 @@ else:
     pg_vincular = st.Page("pages/04_Vincular_Membros.py", title="Vincular Membros", icon="🔗")
     
     # Páginas Operacionais (Acesso para Líderes e Admins)
-    pg_lancamento = st.Page("pages/05_Lancamento_Presenca.py", title="Lançar Presença", icon="📝")
+    pg_lancamento = st.Page("pages/05_Lancar_Presenca.py", title="Lançar Presença", icon="📝")
     pg_edicao = st.Page("pages/05_Editar_Presenca.py", title="Editar Presença", icon="✏️")
     pg_relatorios = st.Page("pages/06_Relatorios.py", title="Relatórios", icon="📊")
 
