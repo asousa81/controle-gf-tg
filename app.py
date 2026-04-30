@@ -48,7 +48,7 @@ else:
     # --- ÁREA LOGADA COM NAVEGAÇÃO DINÂMICA ---
     
     # Definição das Páginas (Mapeadas conforme sua estrutura de pastas atual)
-    pg_gerenciamento = st.Page("pages/00_Gerenciamento.py", title="Dashboard Geral", icon="🏠")
+    pg_gerenciamento = st.Page("pages/00_Gerenciamento.py", title="Gerenciamento", icon="🏠")
     pg_pessoas = st.Page("pages/02_Pessoas.py", title="Gestão de Pessoas", icon="👥")
     pg_grupos = st.Page("pages/03_Grupos_Familiares.py", title="Grupos Familiares", icon="⚙️")
     pg_vincular = st.Page("pages/04_Vincular_Membros.py", title="Vincular Membros", icon="🔗")
