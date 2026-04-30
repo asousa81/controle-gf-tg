@@ -10,9 +10,16 @@ def get_supabase_client():
 
 supabase = get_supabase_client()
 
-# --- INICIALIZAÇÃO DO ESTADO ---
+# --- INICIALIZAÇÃO "BULLETPROOF" DO ESTADO ---
+# Coloque isso logo após o get_supabase_client()
 if "logado" not in st.session_state:
     st.session_state.logado = False
+if "nome_usuario" not in st.session_state:
+    st.session_state.nome_usuario = ""
+if "usuario_id" not in st.session_state:
+    st.session_state.usuario_id = None
+if "perfil" not in st.session_state:
+    st.session_state.perfil = "LIDER"
 
 # --- TELA DE LOGIN ---
 if not st.session_state.logado:
