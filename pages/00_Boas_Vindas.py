@@ -25,7 +25,7 @@ with col1:
 with col2:
     st.info("""
     **💡 Dica de Líder:**
-    O lançamento regular das presenças nos ajuda a entender a saúde do CCM e a apoiar melhor cada membro em sua caminhada.
+    O lançamento regular das presenças nos ajuda a entender a saúde do GF e a apoiar melhor cada membro em sua caminhada.
     """)
 
 st.divider()
