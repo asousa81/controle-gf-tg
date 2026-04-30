@@ -3,28 +3,31 @@ import pandas as pd
 from supabase import create_client
 from datetime import date, datetime
 
-# 1. Configuração da Página
+# 1. CONFIGURAÇÃO DA PÁGINA
 st.set_page_config(page_title="Lançar Presença", page_icon="📝", layout="wide")
 
+# 2. CONEXÃO COM SUPABASE
 @st.cache_resource
 def get_supabase_client():
     return create_client(st.secrets["SUPABASE_URL"], st.secrets["SUPABASE_KEY"])
 
 supabase = get_supabase_client()
 
-# --- 2. SEGURANÇA: BLOQUEIO DE ACESSO DIRETO ---
+# --- 3. SEGURANÇA: BLOQUEIO DE ACESSO DIRETO ---
 if "logado" not in st.session_state or not st.session_state.logado:
     st.warning("⚠️ Acesso restrito. Faça login na página inicial.")
     st.stop()
 
-# --- 3. FILTRO DE DADOS POR PERFIL ---
+# --- 4. FILTRO DE DADOS POR PERFIL ---
 usuario_id = st.session_state.get('usuario_id')
 perfil = st.session_state.get('perfil')
 
 if perfil == 'ADMIN':
+    # Arthur e Simone veem todos os grupos
     res_g = supabase.table("grupos_familiares").select("id, numero, nome").eq("ativo", True).order("numero").execute()
     g_opcoes = res_g.data
 else:
+    # Líderes veem apenas seus grupos vinculados
     res_g = supabase.table("membros_grupo").select(
         "grupo_id, grupos_familiares(id, numero, nome)"
     ).eq("pessoa_id", usuario_id).filter("funcao", "in", '("LÍDER", "CO-LÍDER")').execute()
@@ -35,10 +38,10 @@ st.title("📝 Chamada do Grupo Familiar")
 if not g_opcoes:
     st.warning("🔍 Nenhum grupo vinculado ao seu perfil.")
     if st.button("🏠 Voltar"):
-        st.switch_page("pages/00_Boas_Vindas.py") # Ajustado para sua nova Home
+        st.switch_page("pages/00_Boas_Vindas.py")
     st.stop()
 
-# --- PASSO 1: SELEÇÃO ---
+# --- PASSO 1: SELEÇÃO DO GRUPO E CONTEXTO ---
 with st.container():
     col_g, col_d = st.columns(2)
     with col_g:
@@ -61,18 +64,17 @@ st.divider()
 
 # --- PASSO 2: LISTA DE CHAMADA E VISITANTES ---
 if grupo_sel:
-    # Inicialização de variáveis para evitar NameError
     presencas_marcadas = {}
     obs = ""
     
-    # Busca membros
+    # Busca membros ativos do grupo
     res_m = supabase.table("membros_grupo").select(
         "pessoa_id, funcao, pessoas(nome_completo)"
     ).eq("grupo_id", grupo_sel["id"]).eq("ativo", True).execute()
 
     if res_m.data:
         membros = [{"id": m["pessoa_id"], "nome": m["pessoas"]["nome_completo"], "funcao": m["funcao"]} for m in res_m.data]
-        ordem_funcao = {"LÍDER": 0, "CO-LÍDER": 1, "ANFITRIÃO": 2, "MEMBRO": 3, "VISITANTE": 4}
+        ordem_funcao = {"LÍDER": 0, "CO-LÍDER": 1, "ANFITRIÃO": 2, "MEMBRO": 3}
         membros_ordenados = sorted(membros, key=lambda x: ordem_funcao.get(x["funcao"], 99))
 
         st.subheader(f"👥 Membros de {grupo_sel['nome']}")
@@ -105,12 +107,12 @@ if grupo_sel:
                     "telefone_visitante": v_tel, "data_reuniao": str(data_reuniao), "grupo_id": grupo_sel["id"]
                 })
                 st.rerun()
-            else: st.error("O nome é obrigatório.")
+            else: st.error("O nome do visitante é obrigatório.")
 
     if st.session_state.lista_visitantes:
         st.write("#### Visitantes prontos para salvar:")
         st.table(pd.DataFrame(st.session_state.lista_visitantes)[['nome_visitante', 'quem_convidou', 'telefone_visitante']])
-        if st.button("🗑️ Limpar Lista"):
+        if st.button("🗑️ Limpar Lista de Visitantes"):
             st.session_state.lista_visitantes = []
             st.rerun()
 
@@ -122,31 +124,43 @@ if grupo_sel:
     with col_btn_save:
         if st.button("🚀 Salvar Chamada Completa", type="primary", use_container_width=True):
             try:
-                # 1. Processa Membros
-                lista_membros = []
-                for p_id, presente in presencas_marcadas.items():
-                    if presente:
-                        lista_membros.append({
-                            "data_reuniao": str(data_reuniao), "pessoa_id": p_id, "grupo_id": grupo_sel["id"],
-                            "observacao": obs, "horario_inicio": h_inicio.strftime("%H:%M:%S"),
-                            "horario_termino": h_fim.strftime("%H:%M:%S")
-                        })
-                
-                if lista_membros:
-                    supabase.table("presencas").insert(lista_membros).execute()
-                
-                # 2. Processa Visitantes
-                if st.session_state.lista_visitantes:
-                    supabase.table("visitantes_encontro").insert(st.session_state.lista_visitantes).execute()
-                    st.session_state.lista_visitantes = [] # Limpa após salvar
-                
-                st.success("✅ Tudo salvo com sucesso!")
-                st.balloons()
+                # A) VALIDAÇÃO DE EXISTÊNCIA (IMPEDE DUPLICIDADE NA FONTE)
+                check_p = supabase.table("presencas").select("id", count='exact').eq("grupo_id", grupo_sel["id"]).eq("data_reuniao", str(data_reuniao)).execute()
+                check_v = supabase.table("visitantes_encontro").select("id", count='exact').eq("grupo_id", grupo_sel["id"]).eq("data_reuniao", str(data_reuniao)).execute()
+
+                if (check_p.count and check_p.count > 0) or (check_v.count and check_v.count > 0):
+                    st.error(f"⚠️ Já existe um lançamento para o dia {data_reuniao.strftime('%d/%m/%Y')}.")
+                    st.info("Para realizar alterações, utilize a aba **'Editar Presença'**.")
+                else:
+                    # B) PROCESSA MEMBROS
+                    lista_membros = []
+                    for p_id, presente in presencas_marcadas.items():
+                        if presente:
+                            lista_membros.append({
+                                "data_reuniao": str(data_reuniao), "pessoa_id": p_id, "grupo_id": grupo_sel["id"],
+                                "observacao": obs, "horario_inicio": h_inicio.strftime("%H:%M:%S"),
+                                "horario_termino": h_fim.strftime("%H:%M:%S")
+                            })
+                    
+                    # C) GRAVA NO BANCO
+                    if lista_membros:
+                        supabase.table("presencas").insert(lista_membros).execute()
+                    
+                    if st.session_state.lista_visitantes:
+                        supabase.table("visitantes_encontro").insert(st.session_state.lista_visitantes).execute()
+                        st.session_state.lista_visitantes = [] 
+                    
+                    st.success("✅ Chamada registrada com sucesso!")
+                    st.balloons()
             except Exception as e:
                 st.error(f"Erro ao salvar: {e}")
 
     with col_btn_exit:
-        # Trocamos o rerun pela navegação direta para a sua tela de Início
+        # NAVEGAÇÃO EXPLÍCITA PARA A HOME
         if st.button("🏠 Sair", use_container_width=True):
-            st.switch_page("pages/00_Boas_Vindas.py")[cite: 1]
+            st.switch_page("pages/00_Boas_Vindas.py")
 
+else:
+    st.warning("Este grupo não possui membros vinculados.")
+    if st.button("🏠 Voltar"):
+        st.switch_page("pages/00_Boas_Vindas.py")
