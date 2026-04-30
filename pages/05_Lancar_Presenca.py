@@ -42,13 +42,6 @@ if not g_opcoes:
         st.switch_page("app.py")
     st.stop()
 
-# --- BOTÃO DE SAIR NO MENU LATERAL ---
-with st.sidebar:
-    st.divider()
-    if st.button("🚪 Encerrar Sessão", use_container_width=True):
-        st.session_state.logado = False
-        st.switch_page("app.py")
-
 # --- PASSO 1: SELEÇÃO DO GRUPO E CONTEXTO ---
 with st.container():
     col_g, col_d = st.columns(2)
