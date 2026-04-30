@@ -3,10 +3,6 @@ import pandas as pd
 from supabase import create_client
 from datetime import date, datetime
 
-# --- SEGURANÇA ---
-if "logado" not in st.session_state or not st.session_state.logado:
-    st.warning("⚠️ Acesso restrito. Faça login na página inicial.")
-    st.stop()
 
 st.set_page_config(page_title="Lançar Presença", page_icon="📝", layout="wide")
 
