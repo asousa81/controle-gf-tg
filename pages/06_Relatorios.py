@@ -47,7 +47,7 @@ def gerar_pdf_oficial(grupo, mes_ano, lideres, colideres, df_membros, obs_texto,
     pdf.cell(130, 5, c("NOME DO GRUPO FAMILIAR"), border=1, fill=True)
     pdf.cell(60, 5, c("Nº DO GF"), border=1, fill=True, ln=True)
     pdf.set_font("Arial", "", 10)
-    pdf.cell(130, 8, c(f"GF {grupo['numero']} - {grupo['nome']}"), border=1)
+    pdf.cell(130, 8, c(f"{grupo['nome']}"), border=1)
     pdf.cell(60, 8, c(f"{grupo['numero']}"), border=1, ln=True)
     
     pdf.set_font("Arial", "B", 8)
