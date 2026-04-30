@@ -5,10 +5,25 @@ from datetime import datetime
 import calendar
 from fpdf import FPDF
 
-# --- SEGURANÇA ---
+# --- 1. SEGURANÇA: BLOQUEIO DE ACESSO DIRETO ---
 if "logado" not in st.session_state or not st.session_state.logado:
     st.warning("⚠️ Acesso restrito. Faça login na página inicial.")
     st.stop()
+
+# --- 2. FILTRO DE DADOS POR PERFIL ---
+usuario_id = st.session_state.get('usuario_id')
+perfil = st.session_state.get('perfil')
+
+if perfil == 'ADMIN':
+    # Arthur e Simone veem tudo
+    res_g = supabase.table("grupos_familiares").select("id, numero, nome").eq("ativo", True).order("numero").execute()
+    g_opcoes = res_g.data
+else:
+    # Líderes veem apenas seus grupos vinculados no CCM
+    res_g = supabase.table("membros_grupo").select(
+        "grupo_id, grupos_familiares(id, numero, nome)"
+    ).eq("pessoa_id", usuario_id).filter("funcao", "in", '("LÍDER", "CO-LÍDER")').execute()
+    g_opcoes = [item['grupos_familiares'] for item in res_g.data] if res_g.data else []
 
 st.set_page_config(page_title="Relatório Executivo", page_icon="📈", layout="wide")
 
