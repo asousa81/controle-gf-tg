@@ -22,38 +22,31 @@ usuario_id = st.session_state.get('usuario_id')
 perfil = st.session_state.get('perfil')
 
 if perfil == 'ADMIN':
-    # Arthur e Simone veem tudo
     res_g = supabase.table("grupos_familiares").select("id, numero, nome").eq("ativo", True).order("numero").execute()
     g_opcoes = res_g.data
 else:
-    # Líderes veem apenas seus grupos vinculados no CCM
     res_g = supabase.table("membros_grupo").select(
         "grupo_id, grupos_familiares(id, numero, nome)"
     ).eq("pessoa_id", usuario_id).filter("funcao", "in", '("LÍDER", "CO-LÍDER")').execute()
     g_opcoes = [item['grupos_familiares'] for item in res_g.data] if res_g.data else []
 
-# --- 4. INTERFACE PRINCIPAL ---
-# Removido o título duplicado de "Ajustar Lançamentos"
 st.title("📝 Chamada do Grupo Familiar")
 
 if not g_opcoes:
     st.warning("🔍 Nenhum grupo vinculado ao seu perfil.")
     if st.button("🏠 Voltar"):
-        st.switch_page("app.py")
+        st.switch_page("pages/00_Boas_Vindas.py") # Ajustado para sua nova Home
     st.stop()
 
-# --- PASSO 1: SELEÇÃO DO GRUPO E CONTEXTO ---
+# --- PASSO 1: SELEÇÃO ---
 with st.container():
     col_g, col_d = st.columns(2)
-    
     with col_g:
-        # AQUI ESTAVA O ERRO: Removida a consulta redundante que ignorava o filtro
         grupo_sel = st.selectbox(
             "Selecione o GF", 
             g_opcoes, 
             format_func=lambda x: f"GF {x['numero']} - {x['nome']}"
         )
-
     with col_d:
         data_reuniao = st.date_input("Data da Reunião", value=date.today())
 
@@ -66,28 +59,23 @@ with st.container():
 
 st.divider()
 
-# --- PASSO 2: LISTA DE CHAMADA ---
+# --- PASSO 2: LISTA DE CHAMADA E VISITANTES ---
 if grupo_sel:
+    # Inicialização de variáveis para evitar NameError
+    presencas_marcadas = {}
+    obs = ""
+    
+    # Busca membros
     res_m = supabase.table("membros_grupo").select(
         "pessoa_id, funcao, pessoas(nome_completo)"
     ).eq("grupo_id", grupo_sel["id"]).eq("ativo", True).execute()
 
     if res_m.data:
-        membros = []
-        for m in res_m.data:
-            membros.append({
-                "id": m["pessoa_id"],
-                "nome": m["pessoas"]["nome_completo"],
-                "funcao": m["funcao"]
-            })
-        
+        membros = [{"id": m["pessoa_id"], "nome": m["pessoas"]["nome_completo"], "funcao": m["funcao"]} for m in res_m.data]
         ordem_funcao = {"LÍDER": 0, "CO-LÍDER": 1, "ANFITRIÃO": 2, "MEMBRO": 3, "VISITANTE": 4}
         membros_ordenados = sorted(membros, key=lambda x: ordem_funcao.get(x["funcao"], 99))
 
         st.subheader(f"👥 Membros de {grupo_sel['nome']}")
-        
-        presencas_marcadas = {}
-        
         for m in membros_ordenados:
             col_nome, col_presenca = st.columns([3, 1])
             with col_nome:
@@ -99,89 +87,64 @@ if grupo_sel:
         st.divider()
         obs = st.text_area("Anotações da Reunião", placeholder="Pedidos de oração ou observações...")
 
-
-# --- SEÇÃO DE VISITANTES ---
-st.divider()
-st.subheader("➕ Adicionar Visitantes")
-
-# Inicializa a lista de visitantes na sessão se não existir
-if "lista_visitantes" not in st.session_state:
-    st.session_state.lista_visitantes = []
-
-with st.expander("Clique para cadastrar um visitante", expanded=False):
-    v_col1, v_col2, v_col3 = st.columns([2, 2, 1.5])
-    
-    with v_col1:
-        v_nome = st.text_input("Nome do Visitante", key="v_nome")
-    with v_col2:
-        v_convidado_por = st.text_input("Quem Convidou?", key="v_convite")
-    with v_col3:
-        v_tel = st.text_input("Telefone (WhatsApp)", key="v_tel")
-    
-    if st.button("➕ Adicionar à Lista"):
-        if v_nome:
-            novo_visitante = {
-                "nome_visitante": v_nome,
-                "quem_convidou": v_convidado_por,
-                "telefone_visitante": v_tel,
-                "data_reuniao": str(data_reuniao),
-                "grupo_id": grupo_sel["id"]
-            }
-            st.session_state.lista_visitantes.append(novo_visitante)
-            st.success(f"Visitante {v_nome} adicionado!")
-        else:
-            st.error("O nome do visitante é obrigatório.")
-
-# Exibe os visitantes adicionados
-if st.session_state.lista_visitantes:
-    st.write("#### Visitantes deste encontro:")
-    df_visitantes = pd.DataFrame(st.session_state.lista_visitantes)
-    st.table(df_visitantes[['nome_visitante', 'quem_convidou', 'telefone_visitante']])
-    if st.button("🗑️ Limpar Lista de Visitantes"):
+    # --- SEÇÃO DE VISITANTES ---
+    st.subheader("➕ Adicionar Visitantes")
+    if "lista_visitantes" not in st.session_state:
         st.session_state.lista_visitantes = []
 
+    with st.expander("Clique para cadastrar um visitante", expanded=False):
+        v_col1, v_col2, v_col3 = st.columns([2, 2, 1.5])
+        with v_col1: v_nome = st.text_input("Nome do Visitante", key="v_nome_in")
+        with v_col2: v_convidado_por = st.text_input("Quem Convidou?", key="v_convite_in")
+        with v_col3: v_tel = st.text_input("Telefone (WhatsApp)", key="v_tel_in")
         
-        # --- PASSO 3: SALVAR E SAIR ---
-        col_btn_save, col_btn_exit = st.columns(2)
+        if st.button("➕ Adicionar à Lista"):
+            if v_nome:
+                st.session_state.lista_visitantes.append({
+                    "nome_visitante": v_nome, "quem_convidou": v_convidado_por,
+                    "telefone_visitante": v_tel, "data_reuniao": str(data_reuniao), "grupo_id": grupo_sel["id"]
+                })
+                st.rerun()
+            else: st.error("O nome é obrigatório.")
 
-        with col_btn_save:
-            if st.button("🚀 Salvar Chamada", type="primary", use_container_width=True):
-                try:
-                    lista_insert = []
-                    for p_id, presente in presencas_marcadas.items():
-                        if presente:
-                            lista_insert.append({
-                                "data_reuniao": str(data_reuniao),
-                                "pessoa_id": p_id,
-                                "grupo_id": grupo_sel["id"],
-                                "observacao": obs,
-                                "horario_inicio": h_inicio.strftime("%H:%M:%S"),
-                                "horario_termino": h_fim.strftime("%H:%M:%S")
-                            })
-                    
-                    if lista_insert:
-                        supabase.table("presencas").insert(lista_insert).execute()
-                        st.success(f"✅ Sucesso! {len(lista_insert)} presenças registradas.")
-                        st.balloons()
-                        st.info("Lançamento concluído. Você pode sair ou realizar uma nova chamada.")
-                    else:
-                        st.warning("Nenhuma presença marcada para salvar.")
-           # 2. SALVA OS VISITANTES (Nova parte)
-            if st.session_state.lista_visitantes:
-                supabase.table("visitantes_encontro").insert(st.session_state.lista_visitantes).execute()
-                # Limpa a lista após salvar
-                st.session_state.lista_visitantes = []
+    if st.session_state.lista_visitantes:
+        st.write("#### Visitantes prontos para salvar:")
+        st.table(pd.DataFrame(st.session_state.lista_visitantes)[['nome_visitante', 'quem_convidou', 'telefone_visitante']])
+        if st.button("🗑️ Limpar Lista"):
+            st.session_state.lista_visitantes = []
+            st.rerun()
 
-            st.success("✅ Tudo salvo com sucesso! Membros e Visitantes registrados.")
-            st.balloons()
-            
-                except Exception as e:
-                    st.error(f"Erro ao salvar: {e}")
+    st.divider()
 
-        with col_btn_exit:
-            if st.button("🏠 Sair e Voltar ao Início", use_container_width=True):
-                st.switch_page("app.py")
+    # --- PASSO 3: SALVAR E SAIR ---
+    col_btn_save, col_btn_exit = st.columns(2)
 
-    else:
-        st.warning("Este grupo não possui membros vinculados.")
-        if st.button("🏠 Voltar"): st.switch_page("app.py")
+    with col_btn_save:
+        if st.button("🚀 Salvar Chamada Completa", type="primary", use_container_width=True):
+            try:
+                # 1. Processa Membros
+                lista_membros = []
+                for p_id, presente in presencas_marcadas.items():
+                    if presente:
+                        lista_membros.append({
+                            "data_reuniao": str(data_reuniao), "pessoa_id": p_id, "grupo_id": grupo_sel["id"],
+                            "observacao": obs, "horario_inicio": h_inicio.strftime("%H:%M:%S"),
+                            "horario_termino": h_fim.strftime("%H:%M:%S")
+                        })
+                
+                if lista_membros:
+                    supabase.table("presencas").insert(lista_membros).execute()
+                
+                # 2. Processa Visitantes
+                if st.session_state.lista_visitantes:
+                    supabase.table("visitantes_encontro").insert(st.session_state.lista_visitantes).execute()
+                    st.session_state.lista_visitantes = [] # Limpa após salvar
+                
+                st.success("✅ Tudo salvo com sucesso!")
+                st.balloons()
+            except Exception as e:
+                st.error(f"Erro ao salvar: {e}")
+
+    with col_btn_exit:
+        if st.button("🏠 Sair", use_container_width=True):
+            st.rerun() # Volta para a home devido à lógica do app.py
