@@ -2,7 +2,7 @@ import streamlit as st
 from supabase import create_client
 
 # 1. CONFIGURAÇÃO DA PÁGINA
-st.set_page_config(page_title="Gestão GF's", page_icon="⛪", layout="centered")
+st.set_page_config(page_title="Gestão CCM", page_icon="⛪", layout="centered")
 
 # 2. CONEXÃO COM SUPABASE
 @st.cache_resource
@@ -46,17 +46,17 @@ if not st.session_state.logado:
 else:
     # --- 5. ÁREA LOGADA (NAVEGAÇÃO) ---
 
-    # Definição das Páginas (Certifique-se de que os arquivos existem na pasta /pages)
+    # AQUI ESTÁ A "FUNÇÃO": O parâmetro default=True força o app a abrir nesta página
     pg_home = st.Page("pages/00_Boas_Vindas.py", title="Início", icon="🏠", default=True)
     
-    # Administração (Arthur e Simone)
+    # Administração
     pg_gerenciamento = st.Page("pages/00_Gerenciamento.py", title="Dashboard Geral", icon="📊")
     pg_pessoas = st.Page("pages/02_Pessoas.py", title="Gestão de Pessoas", icon="👥")
     pg_grupos = st.Page("pages/03_Grupos_Familiares.py", title="Grupos Familiares", icon="⚙️")
     pg_vincular = st.Page("pages/04_Vincular_Membros.py", title="Vincular Membros", icon="🔗")
     
-    # Operacional (Líderes)
-    pg_lancamento = st.Page("pages/05_Lancar_Presenca.py", title="Lançar Presença", icon="📝")
+    # Operacional
+    pg_lancamento = st.Page("pages/05_Lancamento_Presenca.py", title="Lançar Presença", icon="📝")
     pg_edicao = st.Page("pages/05_Editar_Presenca.py", title="Editar Presença", icon="✏️")
     pg_relatorios = st.Page("pages/06_Relatorios.py", title="Relatórios", icon="📈")
 
@@ -76,7 +76,7 @@ else:
     # Executa a navegação
     pg.run()
     
-    # 6. SIDEBAR GLOBAL (Botão de Sair fixo para todos)
+    # 6. SIDEBAR GLOBAL
     with st.sidebar:
         st.divider()
         st.write(f"Logado como: **{st.session_state.nome_usuario}**")
