@@ -3,7 +3,7 @@ import pandas as pd
 from supabase import create_client
 from datetime import date, datetime
 
-
+# 1. Configuração da Página
 st.set_page_config(page_title="Lançar Presença", page_icon="📝", layout="wide")
 
 @st.cache_resource
@@ -12,12 +12,12 @@ def get_supabase_client():
 
 supabase = get_supabase_client()
 
-# --- 1. SEGURANÇA: BLOQUEIO DE ACESSO DIRETO ---
+# --- 2. SEGURANÇA: BLOQUEIO DE ACESSO DIRETO ---
 if "logado" not in st.session_state or not st.session_state.logado:
     st.warning("⚠️ Acesso restrito. Faça login na página inicial.")
     st.stop()
 
-# --- 2. FILTRO DE DADOS POR PERFIL ---
+# --- 3. FILTRO DE DADOS POR PERFIL ---
 usuario_id = st.session_state.get('usuario_id')
 perfil = st.session_state.get('perfil')
 
@@ -32,16 +32,15 @@ else:
     ).eq("pessoa_id", usuario_id).filter("funcao", "in", '("LÍDER", "CO-LÍDER")').execute()
     g_opcoes = [item['grupos_familiares'] for item in res_g.data] if res_g.data else []
 
-# --- 3. INTERFACE (Onde o código já estava) ---
-st.title("✏️ Ajustar Lançamentos")
+# --- 4. INTERFACE PRINCIPAL ---
+# Removido o título duplicado de "Ajustar Lançamentos"
+st.title("📝 Chamada do Grupo Familiar")
 
-if g_opcoes:
-    # Aqui entra o seu st.selectbox usando g_opcoes...
-    pass
-else:
+if not g_opcoes:
     st.warning("🔍 Nenhum grupo vinculado ao seu perfil.")
+    if st.button("🏠 Voltar"):
+        st.switch_page("app.py")
     st.stop()
-
 
 # --- BOTÃO DE SAIR NO MENU LATERAL ---
 with st.sidebar:
@@ -50,16 +49,17 @@ with st.sidebar:
         st.session_state.logado = False
         st.switch_page("app.py")
 
-st.title("📝 Chamada do Grupo Familiar")
-
 # --- PASSO 1: SELEÇÃO DO GRUPO E CONTEXTO ---
 with st.container():
     col_g, col_d = st.columns(2)
     
     with col_g:
-        res_g = supabase.table("grupos_familiares").select("id, numero, nome").eq("ativo", True).order("numero").execute()
-        g_opcoes = res_g.data if res_g.data else []
-        grupo_sel = st.selectbox("Selecione o GF", g_opcoes, format_func=lambda x: f"GF {x['numero']} - {x['nome']}")
+        # AQUI ESTAVA O ERRO: Removida a consulta redundante que ignorava o filtro
+        grupo_sel = st.selectbox(
+            "Selecione o GF", 
+            g_opcoes, 
+            format_func=lambda x: f"GF {x['numero']} - {x['nome']}"
+        )
 
     with col_d:
         data_reuniao = st.date_input("Data da Reunião", value=date.today())
@@ -128,7 +128,6 @@ if grupo_sel:
                         supabase.table("presencas").insert(lista_insert).execute()
                         st.success(f"✅ Sucesso! {len(lista_insert)} presenças registradas.")
                         st.balloons()
-                        # Pequeno delay antes de habilitar o retorno
                         st.info("Lançamento concluído. Você pode sair ou realizar uma nova chamada.")
                     else:
                         st.warning("Nenhuma presença marcada para salvar.")
@@ -136,7 +135,6 @@ if grupo_sel:
                     st.error(f"Erro ao salvar: {e}")
 
         with col_btn_exit:
-            # Botão de saída imediata ou após preencher
             if st.button("🏠 Sair e Voltar ao Início", use_container_width=True):
                 st.switch_page("app.py")
 
