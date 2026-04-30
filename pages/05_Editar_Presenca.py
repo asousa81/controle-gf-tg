@@ -3,6 +3,11 @@ import pandas as pd
 from supabase import create_client
 from datetime import date, datetime
 
+# --- SEGURANÇA ---
+if "logado" not in st.session_state or not st.session_state.logado:
+    st.warning("⚠️ Acesso restrito. Faça login na página inicial.")
+    st.stop()
+
 st.set_page_config(page_title="Editar Presença", page_icon="✏️", layout="wide")
 
 @st.cache_resource
@@ -13,7 +18,7 @@ supabase = get_supabase_client()
 
 st.title("✏️ Ajustar Lançamentos")
 
-# --- PASSO 1: SELEÇÃO (O gatilho para a busca) ---
+# --- PASSO 1: SELEÇÃO ---
 col_g, col_d = st.columns(2)
 
 with col_g:
@@ -26,25 +31,27 @@ with col_d:
 
 st.divider()
 
-# --- PASSO 2: BUSCA AUTOMÁTICA DE DADOS EXISTENTES ---
+# --- PASSO 2: BUSCA E TRATAMENTO DE DADOS ---
 if grupo_sel:
-    # Busca quem já teve presença marcada nesta data
     res_presencas_existentes = supabase.table("presencas").select("*").eq("grupo_id", grupo_sel["id"]).eq("data_reuniao", str(data_reuniao)).execute()
     
-    # Criamos um "Mapa de Presença" (ID da pessoa -> Registro)
     mapa_p = {p['pessoa_id']: p for p in res_presencas_existentes.data}
-    
-    # Carregamos os dados da reunião (Horários e Obs) do primeiro registro encontrado
     dados_reuniao = res_presencas_existentes.data[0] if res_presencas_existentes.data else {}
     
+    # FUNÇÃO DE LIMPEZA (O Hotfix para evitar o TypeError)
+    def format_time_safe(val, default):
+        if val is None or str(val).lower() == 'none':
+            return default
+        return str(val)[:5]
+
     obs_previa = dados_reuniao.get('observacao', "")
-    h_i_previa = dados_reuniao.get('horario_inicio', "20:00:00")[:5]
-    h_f_previa = dados_reuniao.get('horario_termino', "21:30:00")[:5]
+    h_i_previa = format_time_safe(dados_reuniao.get('horario_inicio'), "20:00")
+    h_f_previa = format_time_safe(dados_reuniao.get('horario_termino'), "21:30")
 
     if not res_presencas_existentes.data:
-        st.warning(f"🔍 Não encontramos nenhum lançamento para o dia {data_reuniao.strftime('%d/%m/%Y')}. Você pode iniciar um novo ou trocar a data.")
+        st.warning(f"🔍 Nenhum lançamento encontrado para o dia {data_reuniao.strftime('%d/%m/%Y')}.")
 
-    # --- PASSO 3: INTERFACE DE EDIÇÃO ---
+    # --- PASSO 3: INTERFACE ---
     st.write("### ⏰ Ajustar Horários e Notas")
     c1, c2 = st.columns(2)
     with c1:
@@ -54,40 +61,34 @@ if grupo_sel:
 
     st.write("### 👥 Lista de Membros")
     
-    # Busca todos os membros ativos para garantir que novos membros também apareçam
     res_m = supabase.table("membros_grupo").select("pessoa_id, funcao, pessoas(nome_completo)").eq("grupo_id", grupo_sel["id"]).eq("ativo", True).execute()
     
     presencas_editadas = {}
     
     if res_m.data:
-        # Ordenação clássica: Líderes no topo
         ordem = {"LÍDER": 0, "CO-LÍDER": 1, "ANFITRIÃO": 2, "MEMBRO": 3}
         membros_ordenados = sorted(res_m.data, key=lambda x: ordem.get(x["funcao"], 99))
 
         for m in membros_ordenados:
             p_id = m["pessoa_id"]
             nome = m['pessoas']['nome_completo']
-            
             col_n, col_p = st.columns([3, 1])
             with col_n:
                 st.write(f"**{nome}** ({m['funcao']})")
             with col_p:
-                # O segredo está aqui: o checkbox nasce marcado se o ID estiver no mapa_p
                 presencas_editadas[p_id] = st.checkbox("Presente", value=(p_id in mapa_p), key=f"ed_{p_id}_{data_reuniao}")
 
         st.divider()
         nova_obs = st.text_area("Observações da Reunião", value=obs_previa)
 
-        # --- PASSO 4: PERSISTÊNCIA (SALVAR) ---
+        # --- PASSO 4: SALVAR ---
         col_save, col_back = st.columns(2)
         
         with col_save:
             if st.button("💾 Atualizar Lançamento", type="primary", use_container_width=True):
                 try:
-                    # 1. Limpa o que existia para esta data/grupo (Evita duplicidade)
                     supabase.table("presencas").delete().eq("grupo_id", grupo_sel["id"]).eq("data_reuniao", str(data_reuniao)).execute()
                     
-                    # 2. Insere a nova versão corrigida
                     lista_nova = []
                     for id_pessoa, marcado in presencas_editadas.items():
                         if marcado:
@@ -103,10 +104,10 @@ if grupo_sel:
                     if lista_nova:
                         supabase.table("presencas").insert(lista_nova).execute()
                     
-                    st.success("✅ Lançamento atualizado com sucesso!")
+                    st.success("✅ Lançamento atualizado!")
                     st.balloons()
                 except Exception as e:
-                    st.error(f"Erro ao salvar alterações: {e}")
+                    st.error(f"Erro ao salvar: {e}")
         
         with col_back:
             if st.button("🏠 Voltar ao Início", use_container_width=True):
