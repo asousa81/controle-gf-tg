@@ -49,7 +49,7 @@ else:
     # --- 5. ÁREA LOGADA (NAVEGAÇÃO) ---
 
     # Definição das Páginas
-    pg_home = st.Page("pages/00_Boas_Vindas.py", title="Início", icon="👍", default=True)
+    pg_home = st.Page("pages/00_Boas_Vindas.py", title="Início", icon="👋", default=True)
     pg_gerenciamento = st.Page("pages/00_Gerenciamento.py", title="Gerenciamento", icon="⚙️")
     pg_pessoas = st.Page("pages/02_Pessoas.py", title="Gestão de Pessoas", icon="👥")
     pg_grupos = st.Page("pages/03_Grupos_Familiares.py", title="Grupos Familiares", icon="⛪")
