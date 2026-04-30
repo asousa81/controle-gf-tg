@@ -99,6 +99,48 @@ if grupo_sel:
         st.divider()
         obs = st.text_area("Anotações da Reunião", placeholder="Pedidos de oração ou observações...")
 
+
+# --- SEÇÃO DE VISITANTES ---
+st.divider()
+st.subheader("➕ Adicionar Visitantes")
+
+# Inicializa a lista de visitantes na sessão se não existir
+if "lista_visitantes" not in st.session_state:
+    st.session_state.lista_visitantes = []
+
+with st.expander("Clique para cadastrar um visitante", expanded=False):
+    v_col1, v_col2, v_col3 = st.columns([2, 2, 1.5])
+    
+    with v_col1:
+        v_nome = st.text_input("Nome do Visitante", key="v_nome")
+    with v_col2:
+        v_convidado_por = st.text_input("Quem Convidou?", key="v_convite")
+    with v_col3:
+        v_tel = st.text_input("Telefone (WhatsApp)", key="v_tel")
+    
+    if st.button("➕ Adicionar à Lista"):
+        if v_nome:
+            novo_visitante = {
+                "nome_visitante": v_nome,
+                "quem_convidou": v_convidado_por,
+                "telefone_visitante": v_tel,
+                "data_reuniao": str(data_reuniao),
+                "grupo_id": grupo_sel["id"]
+            }
+            st.session_state.lista_visitantes.append(novo_visitante)
+            st.success(f"Visitante {v_nome} adicionado!")
+        else:
+            st.error("O nome do visitante é obrigatório.")
+
+# Exibe os visitantes adicionados
+if st.session_state.lista_visitantes:
+    st.write("#### Visitantes deste encontro:")
+    df_visitantes = pd.DataFrame(st.session_state.lista_visitantes)
+    st.table(df_visitantes[['nome_visitante', 'quem_convidou', 'telefone_visitante']])
+    if st.button("🗑️ Limpar Lista de Visitantes"):
+        st.session_state.lista_visitantes = []
+
+        
         # --- PASSO 3: SALVAR E SAIR ---
         col_btn_save, col_btn_exit = st.columns(2)
 
