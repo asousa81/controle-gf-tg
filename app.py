@@ -48,9 +48,32 @@ if not st.session_state.logado:
             else:
                 st.error("❌ Usuário ou senha incorretos.")
 else:
-    # --- ÁREA LOGADA ---
-    st.title(f"Olá, {st.session_state.nome_usuario}!")
-    st.write("O sistema está pronto para uso. Utilize o menu lateral para gerenciar as presenças.")
+    # --- DEFINIÇÃO DE PÁGINAS (app.py) ---
+if st.session_state.logado:
+    # Definimos as páginas disponíveis
+    pg_lancamento = st.Page("pages/04_Lancamentos.py", title="Lançar Presença", icon="📝")
+    pg_edicao = st.Page("pages/05_Editar_Presenca.py", title="Editar Presença", icon="✏️")
+    pg_relatorios = st.Page("pages/06_Relatorios.py", title="Relatórios", icon="📊")
+    
+    # Páginas exclusivas de ADMIN (Arthur e Simone)
+    pg_dashboard = st.Page("pages/01_Dashboard.py", title="Dashboard Geral", icon="🏠")
+    pg_membros = st.Page("pages/02_Membros.py", title="Gestão de Membros", icon="👥")
+    pg_grupos = st.Page("pages/03_Grupos.py", title="Configurar GFs", icon="⚙️")
+
+    # --- LÓGICA DE VISIBILIDADE ---
+    if st.session_state.perfil == 'ADMIN':
+        # Você e a Pra. Simone veem TUDO
+        pg = st.navigation({
+            "Administração": [pg_dashboard, pg_membros, pg_grupos],
+            "Operacional": [pg_lancamento, pg_edicao, pg_relatorios]
+        })
+    else:
+        # Líderes veem apenas o essencial
+        pg = st.navigation({
+            "Minha Gestão": [pg_lancamento, pg_edicao, pg_relatorios]
+        })
+    
+    pg.run()
     
     if st.session_state.perfil == 'ADMIN':
         st.success("👑 Modo Coordenador Ativo: Acesso total liberado.")
