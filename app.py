@@ -73,7 +73,7 @@ else:
     pg.run()
     
     # Botão de Logout no Menu Lateral
-       with st.sidebar:
+    with st.sidebar:
         st.divider()
         st.write(f"Logado como: **{st.session_state.nome_usuario}**")
         if st.button("🚪 Sair do Sistema", use_container_width=True):
