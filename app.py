@@ -23,7 +23,7 @@ if "perfil" not in st.session_state:
 
 # 4. FLUXO DE LOGIN
 if not st.session_state.logado:
-    st.title("🔐 Portal de Gestão CCM")
+    st.title("🔐 Portal de Gestão GF's")
     
     with st.form("login_form"):
         usuario_input = st.text_input("Usuário").lower().strip()
@@ -50,9 +50,9 @@ else:
     pg_home = st.Page("pages/00_Boas_Vindas.py", title="Início", icon="🏠", default=True)
     
     # Administração
-    pg_gerenciamento = st.Page("pages/00_Gerenciamento.py", title="Dashboard Geral", icon="📊")
+    pg_gerenciamento = st.Page("pages/00_Gerenciamento.py", title="Gerenciamento", icon="⚙️")
     pg_pessoas = st.Page("pages/02_Pessoas.py", title="Gestão de Pessoas", icon="👥")
-    pg_grupos = st.Page("pages/03_Grupos_Familiares.py", title="Grupos Familiares", icon="⚙️")
+    pg_grupos = st.Page("pages/03_Grupos_Familiares.py", title="Grupos Familiares", icon="⛪")
     pg_vincular = st.Page("pages/04_Vincular_Membros.py", title="Vincular Membros", icon="🔗")
     
     # Operacional
