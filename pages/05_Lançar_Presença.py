@@ -3,6 +3,11 @@ import pandas as pd
 from supabase import create_client
 from datetime import date, datetime
 
+# --- SEGURANÇA ---
+if "logado" not in st.session_state or not st.session_state.logado:
+    st.warning("⚠️ Acesso restrito. Faça login na página inicial.")
+    st.stop()
+
 st.set_page_config(page_title="Lançar Presença", page_icon="📝", layout="wide")
 
 @st.cache_resource
@@ -11,9 +16,16 @@ def get_supabase_client():
 
 supabase = get_supabase_client()
 
+# --- BOTÃO DE SAIR NO MENU LATERAL ---
+with st.sidebar:
+    st.divider()
+    if st.button("🚪 Encerrar Sessão", use_container_width=True):
+        st.session_state.logado = False
+        st.switch_page("app.py")
+
 st.title("📝 Chamada do Grupo Familiar")
 
-# --- PASSO 1: SELEÇÃO DO GRUPO, DATA E HORÁRIOS ---
+# --- PASSO 1: SELEÇÃO DO GRUPO E CONTEXTO ---
 with st.container():
     col_g, col_d = st.columns(2)
     
@@ -25,7 +37,6 @@ with st.container():
     with col_d:
         data_reuniao = st.date_input("Data da Reunião", value=date.today())
 
-    # --- NOVO: SELEÇÃO DE HORÁRIOS ---
     st.write("### ⏰ Horários do Encontro")
     col_h1, col_h2 = st.columns(2)
     with col_h1:
@@ -35,9 +46,8 @@ with st.container():
 
 st.divider()
 
-# --- PASSO 2: LISTA DE CHAMADA DINÂMICA ---
+# --- PASSO 2: LISTA DE CHAMADA ---
 if grupo_sel:
-    # Busca membros vinculados ao grupo selecionado
     res_m = supabase.table("membros_grupo").select(
         "pessoa_id, funcao, pessoas(nome_completo)"
     ).eq("grupo_id", grupo_sel["id"]).eq("ativo", True).execute()
@@ -51,16 +61,13 @@ if grupo_sel:
                 "funcao": m["funcao"]
             })
         
-        # Ordenação: Líderes, Co-Líderes, Anfitriões e depois Membros
         ordem_funcao = {"LÍDER": 0, "CO-LÍDER": 1, "ANFITRIÃO": 2, "MEMBRO": 3, "VISITANTE": 4}
         membros_ordenados = sorted(membros, key=lambda x: ordem_funcao.get(x["funcao"], 99))
 
         st.subheader(f"👥 Membros de {grupo_sel['nome']}")
         
-        # Dicionário para armazenar o estado da presença
         presencas_marcadas = {}
         
-        # Interface de lista de chamada
         for m in membros_ordenados:
             col_nome, col_presenca = st.columns([3, 1])
             with col_nome:
@@ -70,31 +77,42 @@ if grupo_sel:
                 presencas_marcadas[m["id"]] = st.checkbox("Presente", key=f"p_{m['id']}")
 
         st.divider()
-        obs = st.text_area("Anotações da Reunião (Pedidos de oração, observações)", placeholder="Opcional...")
+        obs = st.text_area("Anotações da Reunião", placeholder="Pedidos de oração ou observações...")
 
-        # --- PASSO 3: SALVAR NO BANCO ---
-        if st.button("🚀 Finalizar e Salvar Chamada", type="primary", use_container_width=True):
-            try:
-                lista_insert = []
-                for p_id, presente in presencas_marcadas.items():
-                    # Lógica: Registramos no banco apenas quem estava presente
-                    if presente:
-                        lista_insert.append({
-                            "data_reuniao": str(data_reuniao),
-                            "pessoa_id": p_id,
-                            "grupo_id": grupo_sel["id"],
-                            "observacao": obs,
-                            "horario_inicio": h_inicio.strftime("%H:%M:%S"),
-                            "horario_termino": h_fim.strftime("%H:%M:%S")
-                        })
-                
-                if lista_insert:
-                    supabase.table("presencas").insert(lista_insert).execute()
-                    st.success(f"✅ Presença de {len(lista_insert)} pessoas registrada com sucesso!")
-                    st.balloons()
-                else:
-                    st.warning("Nenhuma presença foi marcada.")
-            except Exception as e:
-                st.error(f"Erro ao salvar presenças: {e}")
+        # --- PASSO 3: SALVAR E SAIR ---
+        col_btn_save, col_btn_exit = st.columns(2)
+
+        with col_btn_save:
+            if st.button("🚀 Salvar Chamada", type="primary", use_container_width=True):
+                try:
+                    lista_insert = []
+                    for p_id, presente in presencas_marcadas.items():
+                        if presente:
+                            lista_insert.append({
+                                "data_reuniao": str(data_reuniao),
+                                "pessoa_id": p_id,
+                                "grupo_id": grupo_sel["id"],
+                                "observacao": obs,
+                                "horario_inicio": h_inicio.strftime("%H:%M:%S"),
+                                "horario_termino": h_fim.strftime("%H:%M:%S")
+                            })
+                    
+                    if lista_insert:
+                        supabase.table("presencas").insert(lista_insert).execute()
+                        st.success(f"✅ Sucesso! {len(lista_insert)} presenças registradas.")
+                        st.balloons()
+                        # Pequeno delay antes de habilitar o retorno
+                        st.info("Lançamento concluído. Você pode sair ou realizar uma nova chamada.")
+                    else:
+                        st.warning("Nenhuma presença marcada para salvar.")
+                except Exception as e:
+                    st.error(f"Erro ao salvar: {e}")
+
+        with col_btn_exit:
+            # Botão de saída imediata ou após preencher
+            if st.button("🏠 Sair e Voltar ao Início", use_container_width=True):
+                st.switch_page("app.py")
+
     else:
-        st.warning("Este grupo ainda não possui membros vinculados.")
+        st.warning("Este grupo não possui membros vinculados.")
+        if st.button("🏠 Voltar"): st.switch_page("app.py")
