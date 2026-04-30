@@ -3,6 +3,7 @@ import pandas as pd
 from supabase import create_client
 from datetime import date, datetime
 
+# 1. Configuração da Página
 st.set_page_config(page_title="Editar Presença", page_icon="✏️", layout="wide")
 
 @st.cache_resource
@@ -11,12 +12,12 @@ def get_supabase_client():
 
 supabase = get_supabase_client()
 
-# --- 1. SEGURANÇA: BLOQUEIO DE ACESSO DIRETO ---
+# --- 2. SEGURANÇA: BLOQUEIO DE ACESSO DIRETO ---
 if "logado" not in st.session_state or not st.session_state.logado:
     st.warning("⚠️ Acesso restrito. Faça login na página inicial.")
     st.stop()
 
-# --- 2. FILTRO DE DADOS POR PERFIL ---
+# --- 3. FILTRO DE DADOS POR PERFIL ---
 usuario_id = st.session_state.get('usuario_id')
 perfil = st.session_state.get('perfil')
 
@@ -25,31 +26,31 @@ if perfil == 'ADMIN':
     res_g = supabase.table("grupos_familiares").select("id, numero, nome").eq("ativo", True).order("numero").execute()
     g_opcoes = res_g.data
 else:
-    # Líderes veem apenas seus grupos vinculados no CCM
+    # Líderes veem apenas seus grupos vinculados
     res_g = supabase.table("membros_grupo").select(
         "grupo_id, grupos_familiares(id, numero, nome)"
     ).eq("pessoa_id", usuario_id).filter("funcao", "in", '("LÍDER", "CO-LÍDER")').execute()
     g_opcoes = [item['grupos_familiares'] for item in res_g.data] if res_g.data else []
 
-# --- 3. INTERFACE (Onde o código já estava) ---
+# --- 4. INTERFACE PRINCIPAL ---
 st.title("✏️ Ajustar Lançamentos")
 
-if g_opcoes:
-    # Aqui entra o seu st.selectbox usando g_opcoes...
-    pass
-else:
+if not g_opcoes:
     st.warning("🔍 Nenhum grupo vinculado ao seu perfil.")
+    if st.button("🏠 Voltar ao Início"):
+        st.switch_page("app.py")
     st.stop()
-    
-st.title("✏️ Ajustar Lançamentos")
 
-# --- PASSO 1: SELEÇÃO ---
+# --- PASSO 1: SELEÇÃO (USANDO AS OPÇÕES FILTRADAS) ---
 col_g, col_d = st.columns(2)
 
 with col_g:
-    res_g = supabase.table("grupos_familiares").select("id, numero, nome").eq("ativo", True).order("numero").execute()
-    g_opcoes = res_g.data if res_g.data else []
-    grupo_sel = st.selectbox("Selecione o GF", g_opcoes, format_func=lambda x: f"GF {x['numero']} - {x['nome']}")
+    # Aqui usamos as g_opcoes que já foram filtradas lá em cima
+    grupo_sel = st.selectbox(
+        "Selecione o GF", 
+        g_opcoes, 
+        format_func=lambda x: f"GF {x['numero']} - {x['nome']}"
+    )
 
 with col_d:
     data_reuniao = st.date_input("Data do Lançamento que deseja editar", value=date.today())
@@ -60,12 +61,10 @@ st.divider()
 if grupo_sel:
     res_presencas_existentes = supabase.table("presencas").select("*").eq("grupo_id", grupo_sel["id"]).eq("data_reuniao", str(data_reuniao)).execute()
     
-    # VERIFICAÇÃO: Só prosseguimos se houver dados lançados
     if res_presencas_existentes.data:
         mapa_p = {p['pessoa_id']: p for p in res_presencas_existentes.data}
         dados_reuniao = res_presencas_existentes.data[0]
         
-        # Função de limpeza para evitar erros de nulos
         def format_time_safe(val, default):
             if val is None or str(val).lower() == 'none':
                 return default
@@ -75,7 +74,6 @@ if grupo_sel:
         h_i_previa = format_time_safe(dados_reuniao.get('horario_inicio'), "20:00")
         h_f_previa = format_time_safe(dados_reuniao.get('horario_termino'), "21:30")
 
-        # --- PASSO 3: INTERFACE DE EDIÇÃO (SÓ APARECE SE HOUVER DADOS) ---
         st.write("### ⏰ Ajustar Horários e Notas")
         c1, c2 = st.columns(2)
         with c1:
@@ -105,7 +103,6 @@ if grupo_sel:
             st.divider()
             nova_obs = st.text_area("Observações da Reunião", value=obs_previa)
 
-            # --- PASSO 4: SALVAR ---
             col_save, col_back = st.columns(2)
             
             with col_save:
@@ -136,9 +133,7 @@ if grupo_sel:
             with col_back:
                 if st.button("🏠 Voltar ao Início", use_container_width=True):
                     st.switch_page("app.py")
-    
     else:
-        # --- CASO NÃO HAJA DADOS: MOSTRA APENAS A FAIXA AMARELA ---
         st.warning(f"🔍 Nenhum lançamento encontrado para o dia {data_reuniao.strftime('%d/%m/%Y')}.")
         if st.button("🏠 Voltar ao Início", use_container_width=True):
             st.switch_page("app.py")
