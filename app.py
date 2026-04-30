@@ -73,15 +73,7 @@ else:
     pg.run()
     
     # Botão de Logout no Menu Lateral
-    with st.sidebar:
-        st.divider()
-        if st.button("🚪 Encerrar Sessão", use_container_width=True):
-        # Limpa o estado de login
-        st.session_state.logado = False
-        # O rerun faz o app.py recarregar e voltar para a tela de login
-        st.rerun()
-    
-    with st.sidebar:
+       with st.sidebar:
         st.divider()
         st.write(f"Logado como: **{st.session_state.nome_usuario}**")
         if st.button("🚪 Sair do Sistema", use_container_width=True):
