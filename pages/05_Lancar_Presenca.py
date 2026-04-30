@@ -166,6 +166,15 @@ if st.session_state.lista_visitantes:
                         st.info("Lançamento concluído. Você pode sair ou realizar uma nova chamada.")
                     else:
                         st.warning("Nenhuma presença marcada para salvar.")
+                        # 2. SALVA OS VISITANTES (Nova parte)
+            if st.session_state.lista_visitantes:
+                supabase.table("visitantes_encontro").insert(st.session_state.lista_visitantes).execute()
+                # Limpa a lista após salvar
+                st.session_state.lista_visitantes = []
+
+            st.success("✅ Tudo salvo com sucesso! Membros e Visitantes registrados.")
+            st.balloons()
+            
                 except Exception as e:
                     st.error(f"Erro ao salvar: {e}")
 
