@@ -25,15 +25,15 @@ if "perfil" not in st.session_state: st.session_state.perfil = "LIDER"
 # 4. FLUXO DE LOGIN
 if not st.session_state.logado:
     st.title("🔐 Portal de Gestão GF's")
-    
+
     with st.form("login_form"):
         usuario_input = st.text_input("Usuário").lower().strip()
         senha_input = st.text_input("Senha", type="password")
         btn_login = st.form_submit_button("Entrar", use_container_width=True)
-        
+
         if btn_login:
             res = supabase.table("pessoas").select("*").eq("usuario", usuario_input).eq("senha", senha_input).execute()
-            
+
             if res.data:
                 user = res.data[0]
                 st.session_state.logado = True
@@ -57,18 +57,20 @@ else:
     pg_lancamento = st.Page("pages/05_Lancar_Presenca.py", title="Lançar Presença", icon="📝")
     pg_edicao = st.Page("pages/05_Editar_Presenca.py", title="Editar Presença", icon="✏️")
     pg_relatorios = st.Page("pages/06_Relatorios.py", title="Relatórios", icon="📈")
+    pg_mural_oracao = st.Page("pages/06_Relatorios.py", title="Relatórios", icon="📈")
+    pg_mural_oracao = st.Page("pages/07_Mural_Oracao.py", title="Mural de Oração", icon="🙏")
 
     # Montagem do Menu por Perfil
     if st.session_state.perfil == 'ADMIN':
         paginas_nav = {
             "Geral": [pg_home],
             "Administração": [pg_gerenciamento, pg_pessoas, pg_grupos, pg_vincular],
-            "Operacional": [pg_lancamento, pg_edicao, pg_relatorios]
+            "Operacional": [pg_lancamento, pg_edicao, pg_relatorios, pg_mural_oracao]
         }
     else:
         paginas_nav = {
             "Geral": [pg_home],
-            "Minha Gestão": [pg_lancamento, pg_edicao, pg_relatorios]
+            "Minha Gestão": [pg_lancamento, pg_edicao, pg_relatorios,pg_mural_oracao]
         }
 
     pg = st.navigation(paginas_nav)
@@ -81,7 +83,7 @@ else:
 
     # Executa a renderização da página
     pg.run()
-    
+
     # 6. SIDEBAR GLOBAL
     with st.sidebar:
         st.divider()
