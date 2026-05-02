@@ -65,6 +65,7 @@ st.divider()
 # --- PASSO 2: LISTA DE CHAMADA E VISITANTES ---
 if grupo_sel:
     presencas_marcadas = {}
+    pedidos_oracao = {}
     obs = ""
     
     # Busca membros ativos do grupo
@@ -77,14 +78,26 @@ if grupo_sel:
         ordem_funcao = {"LÍDER": 0, "CO-LÍDER": 1, "ANFITRIÃO": 2, "MEMBRO": 3}
         membros_ordenados = sorted(membros, key=lambda x: ordem_funcao.get(x["funcao"], 99))
 
+        # --- INICIALIZAÇÃO DOS DICIONÁRIOS (Linha 79) ---
+        pedidos_oracao = {} 
+
         st.subheader(f"👥 Membros de {grupo_sel['nome']}")
-        for m in membros_ordenados:
+        for m in membros_ordenados: # Linha 81 no seu print
             col_nome, col_presenca = st.columns([3, 1])
             with col_nome:
                 prefixo = "⭐ " if "LÍDER" in m["funcao"] else "🏠 " if "ANFITRIÃO" in m["funcao"] else "👤 "
                 st.write(f"{prefixo} **{m['nome']}** ({m['funcao']})")
             with col_presenca:
+                # Captura a presença
                 presencas_marcadas[m["id"]] = st.checkbox("Presente", key=f"p_{m['id']}")
+            
+            # NOVO: Se o check for marcado, abre o campo de oração logo abaixo
+            if presencas_marcadas[m["id"]]:
+                pedidos_oracao[m["id"]] = st.text_input(
+                    f"Pedido de Oração: {m['nome']}", 
+                    key=f"ora_{m['id']}", 
+                    placeholder="Escreva o pedido aqui..."
+                )
 
         st.divider()
         obs = st.text_area("Anotações da Reunião", placeholder="Pedidos de oração ou observações...")
@@ -134,6 +147,7 @@ if grupo_sel:
                 else:
                     # B) PROCESSA MEMBROS
                     lista_membros = []
+                    lista_pedidos = []
                     for p_id, presente in presencas_marcadas.items():
                         if presente:
                             lista_membros.append({
@@ -141,7 +155,16 @@ if grupo_sel:
                                 "observacao": obs, "horario_inicio": h_inicio.strftime("%H:%M:%S"),
                                 "horario_termino": h_fim.strftime("%H:%M:%S")
                             })
-                    
+                            # NOVO: Preenche a lista de pedidos para a tabela dedicada[cite: 6, 11]
+                                    txt_pedido = pedidos_oracao.get(p_id, "").strip()
+                                    if txt_pedido:
+                                        lista_pedidos.append({
+                                            "data_pedido": str(data_reuniao),
+                                            "pessoa_id": p_id,
+                                            "grupo_id": grupo_sel["id"],
+                                            "pedido": txt_pedido
+                                                })
+                
                     # C) GRAVA NO BANCO
                     if lista_membros:
                         supabase.table("presencas").insert(lista_membros).execute()
@@ -149,6 +172,9 @@ if grupo_sel:
                     if st.session_state.lista_visitantes:
                         supabase.table("visitantes_encontro").insert(st.session_state.lista_visitantes).execute()
                         st.session_state.lista_visitantes = [] 
+
+                    if lista_pedidos:
+                        supabase.table("pedidos_oracao").insert(lista_pedidos).execute()
                     
                     st.success("✅ Chamada registrada com sucesso!")
                     st.balloons()
