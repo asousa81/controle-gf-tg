@@ -45,7 +45,7 @@ with tab_cad:
             if est_civil == "Casado(a)":
                 data_casa = st.date_input("Data de Casamento", value=date.today(), min_value=date(1900, 1, 1))
             
-            bairro = st.text_input("Bairro (Opcional)")
+            bairro = st.text_input("Endereço")
 
         st.markdown("---")
         if st.form_submit_button("🚀 Cadastrar Membro", type="primary"):
