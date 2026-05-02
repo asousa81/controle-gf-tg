@@ -58,6 +58,7 @@ with tab_cad:
                         "genero": genero,
                         "estado_civil": est_civil,
                         "data_casamento": str(data_casa) if data_casa else None,
+                        "bairro": bairro,  # ADICIONE ESTA LINHA
                         "ativo": True
                     }).execute()
                     st.success(f"✨ {nome} cadastrado com sucesso!")
