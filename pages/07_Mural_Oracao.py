@@ -3,10 +3,6 @@ from supabase import create_client
 import pandas as pd
 from datetime import datetime
 
-# 1. SEGURANÇA E CONEXÃO
-if "logado" not in st.session_state or not st.session_state.logado:
-    st.stop()
-
 @st.cache_resource
 def get_supabase_client():
     return create_client(st.secrets["SUPABASE_URL"], st.secrets["SUPABASE_KEY"])
