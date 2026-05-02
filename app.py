@@ -83,7 +83,7 @@ if "logado" not in st.session_state or not st.session_state.logado:
     st.warning("⚠️ Faça login para acessar o mural.")
     st.stop()
 
-st.title("🎨 Mural SketchNote")
+st.title("💌 Mural de Orações")
 
 # --- 3. BUSCA E EXIBIÇÃO ---
 try:
