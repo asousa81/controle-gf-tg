@@ -162,6 +162,11 @@ if grupo_sel:
     res_visitantes = supabase.table("visitantes_encontro").select("*").eq("grupo_id", grupo_sel["id"]).gte("data_reuniao", d_ini).lte("data_reuniao", d_fim).execute()
 
     if res_membros.data:
+        lista_pdf = [] 
+        mapa_horarios = {}
+        obs_pdf = ""
+        taxa = 0
+        df_p_calc = pd.DataFrame()
         lideres = [m['pessoas']['nome_completo'] for m in res_membros.data if m['funcao'] == 'LÍDER']
         colideres = [m['pessoas']['nome_completo'] for m in res_membros.data if m['funcao'] == 'CO-LÍDER']
         df_p_calc = pd.DataFrame(res_presencas.data) if res_presencas.data else pd.DataFrame()
