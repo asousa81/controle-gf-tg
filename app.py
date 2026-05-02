@@ -57,18 +57,19 @@ else:
     pg_lancamento = st.Page("pages/05_Lancar_Presenca.py", title="Lançar Presença", icon="📝")
     pg_edicao = st.Page("pages/05_Editar_Presenca.py", title="Editar Presença", icon="✏️")
     pg_relatorios = st.Page("pages/06_Relatorios.py", title="Relatórios", icon="📈")
+    pg_mural_oracao = st.Page("pages/06_Relatorios.py", title="Relatórios", icon="📈")
 
     # Montagem do Menu por Perfil
     if st.session_state.perfil == 'ADMIN':
         paginas_nav = {
             "Geral": [pg_home],
             "Administração": [pg_gerenciamento, pg_pessoas, pg_grupos, pg_vincular],
-            "Operacional": [pg_lancamento, pg_edicao, pg_relatorios]
+            "Operacional": [pg_lancamento, pg_edicao, pg_relatorios, pg_mural_oracao]
         }
     else:
         paginas_nav = {
             "Geral": [pg_home],
-            "Minha Gestão": [pg_lancamento, pg_edicao, pg_relatorios]
+            "Minha Gestão": [pg_lancamento, pg_edicao, pg_relatorios,pg_mural_oracao]
         }
 
     pg = st.navigation(paginas_nav)
