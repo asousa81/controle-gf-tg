@@ -149,21 +149,26 @@ if grupo_sel:
                     lista_membros = []
                     lista_pedidos = []
                     for p_id, presente in presencas_marcadas.items():
-                        if presente:
-                            lista_membros.append({
-                                "data_reuniao": str(data_reuniao), "pessoa_id": p_id, "grupo_id": grupo_sel["id"],
-                                "observacao": obs, "horario_inicio": h_inicio.strftime("%H:%M:%S"),
-                                "horario_termino": h_fim.strftime("%H:%M:%S")
-                            })
-                            # NOVO: Preenche a lista de pedidos para a tabela dedicada[cite: 6, 11]
-                                    txt_pedido = pedidos_oracao.get(p_id, "").strip()
-                                    if txt_pedido:
-                                        lista_pedidos.append({
-                                            "data_pedido": str(data_reuniao),
-                                            "pessoa_id": p_id,
-                                            "grupo_id": grupo_sel["id"],
-                                            "pedido": txt_pedido
-                                                })
+            if presente:
+                # 1. Adiciona os dados de presença
+                lista_membros.append({
+                    "data_reuniao": str(data_reuniao), 
+                    "pessoa_id": p_id, 
+                    "grupo_id": grupo_sel["id"],
+                    "observacao": obs, 
+                    "horario_inicio": h_inicio.strftime("%H:%M:%S"),
+                    "horario_termino": h_fim.strftime("%H:%M:%S")
+                })
+                
+                # 2. Adiciona o pedido de oração (dentro do if presente)
+                txt_pedido = pedidos_oracao.get(p_id, "").strip()
+                if txt_pedido:
+                    lista_pedidos.append({
+                        "data_pedido": str(data_reuniao),
+                        "pessoa_id": p_id,
+                        "grupo_id": grupo_sel["id"],
+                        "pedido": txt_pedido
+                    })
                 
                     # C) GRAVA NO BANCO
                     if lista_membros:
