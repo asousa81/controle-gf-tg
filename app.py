@@ -57,7 +57,7 @@ else:
     pg_lancamento = st.Page("pages/05_Lancar_Presenca.py", title="Lançar Presença", icon="📝")
     pg_edicao = st.Page("pages/05_Editar_Presenca.py", title="Editar Presença", icon="✏️")
     pg_relatorios = st.Page("pages/06_Relatorios.py", title="Relatórios", icon="📈")
-    pg_mural_oracao = st.Page("pages/06_Relatorios.py", title="Relatórios", icon="📈")
+    pg_mural_oracao = st.Page("pages/07_Mural_Oracao.py", title="Mural de Oração", icon="🙏")
 
     # Montagem do Menu por Perfil
     if st.session_state.perfil == 'ADMIN':
