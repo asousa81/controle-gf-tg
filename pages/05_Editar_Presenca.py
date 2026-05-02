@@ -136,4 +136,4 @@ if grupo_sel:
     else:
         st.warning(f"🔍 Nenhum lançamento encontrado para o dia {data_reuniao.strftime('%d/%m/%Y')}.")
         if st.button("🏠 Voltar ao Início", use_container_width=True):
-            st.switch_page("app.py")
+            st.switch_page("pages/00_Boas_Vindas.py")
