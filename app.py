@@ -1,109 +1,91 @@
 import streamlit as st
 from supabase import create_client
-from datetime import datetime
-import urllib.parse
-from fpdf import FPDF
-import os
 
-# CONFIGURAÇÃO
-st.set_page_config(page_title="Mural SketchNote", page_icon="🙌", layout="wide")
+# 1. CONFIGURAÇÃO DA PÁGINA
+st.set_page_config(page_title="Gestão GF's", page_icon="⛪", layout="centered")
 
-# Conexão Supabase
+# 2. CONEXÃO COM SUPABASE
 @st.cache_resource
 def get_supabase_client():
     return create_client(st.secrets["SUPABASE_URL"], st.secrets["SUPABASE_KEY"])
 
 supabase = get_supabase_client()
 
-# --- CLASSE PDF SKETCHNOTE (Ajustada para o erro de binário) ---
-class SketchNotePDF(FPDF):
-    def sketchy_header(self, data_f):
-        self.set_font("helvetica", "B", 20)
-        self.set_text_color(31, 58, 147)
-        self.cell(0, 10, "Mural de Intercessao", ln=True, align="C")
-        self.set_draw_color(31, 58, 147)
-        self.line(70, self.get_y(), 140, self.get_y()) # Linha de rabisco
-        self.ln(10)
+# 3. INICIALIZAÇÃO DO ESTADO DE SESSÃO
+if "logado" not in st.session_state:
+    st.session_state.logado = False
+if "primeiro_acesso" not in st.session_state:
+    st.session_state.primeiro_acesso = False # Nova flag para forçar a Home
 
-def gerar_pdf_sketchnote(data_f, grupos_do_dia):
-    pdf = SketchNotePDF()
-    pdf.set_auto_page_break(auto=True, margin=20)
-    pdf.add_page()
+# ... (outras variáveis de sessão: nome_usuario, usuario_id, perfil)
+if "nome_usuario" not in st.session_state: st.session_state.nome_usuario = ""
+if "usuario_id" not in st.session_state: st.session_state.usuario_id = None
+if "perfil" not in st.session_state: st.session_state.perfil = "LIDER"
+
+# 4. FLUXO DE LOGIN
+if not st.session_state.logado:
+    st.title("🔐 Portal de Gestão GF's")
     
-    font_main = "helvetica"
-    # Se subir o arquivo Caveat-Regular.ttf para o GitHub, ele ativa aqui
-    if os.path.exists("Caveat-Regular.ttf"):
-        pdf.add_font("Sketch", "", "Caveat-Regular.ttf")
-        font_main = "Sketch"
-
-    pdf.sketchy_header(data_f)
-
-    for nome_gf, lista_pedidos in grupos_do_dia.items():
-        pdf.set_fill_color(255, 255, 210) # Cor de Post-it
-        pdf.set_font(font_main, "B" if font_main == "helvetica" else "", 14)
-        pdf.cell(0, 10, f"  GF: {nome_gf} ({data_f})", ln=True, fill=True)
-        pdf.ln(5)
+    with st.form("login_form"):
+        usuario_input = st.text_input("Usuário").lower().strip()
+        senha_input = st.text_input("Senha", type="password")
+        btn_login = st.form_submit_button("Entrar", use_container_width=True)
         
-        for item in lista_pedidos:
-            nome = item['pessoas']['nome_completo'].split()[0].upper()
-            pedido = item['pedido']
+        if btn_login:
+            res = supabase.table("pessoas").select("*").eq("usuario", usuario_input).eq("senha", senha_input).execute()
             
-            # Efeito Marca-texto no Nome
-            pdf.set_fill_color(210, 255, 210) 
-            pdf.set_font(font_main, "B" if font_main == "helvetica" else "", 11)
-            pdf.cell(pdf.get_string_width(f" {nome} ") + 4, 7, f" {nome} ", fill=True)
-            pdf.ln(8)
-            
-            # Texto do Pedido
-            pdf.set_font(font_main, "", 12)
-            texto_pdf = pedido.encode('latin-1', 'replace').decode('latin-1')
-            pdf.multi_cell(0, 6, f"  \"{texto_pdf}\"")
-            pdf.ln(5)
-            
-    return bytes(pdf.output()) # Fix para o erro de bytearray
+            if res.data:
+                user = res.data[0]
+                st.session_state.logado = True
+                st.session_state.primeiro_acesso = True # ATIVA O REDIRECIONAMENTO
+                st.session_state.usuario_id = user['id']
+                st.session_state.nome_usuario = user['nome_completo']
+                st.session_state.perfil = user.get('perfil', 'LIDER')
+                st.rerun()
+            else:
+                st.error("❌ Usuário ou senha incorretos.")
 
-# --- SEGURANÇA ---
-if not st.session_state.get("logado"):
-    st.warning("⚠️ Sessão expirada. Por favor, volte à página inicial para fazer login.")
-    st.stop()
+else:
+    # --- 5. ÁREA LOGADA (NAVEGAÇÃO) ---
 
-st.title("💌 Mural de Orações")
+    # Definição das Páginas
+    pg_home = st.Page("pages/00_Boas_Vindas.py", title="Início", icon="👋", default=True)
+    pg_gerenciamento = st.Page("pages/00_Gerenciamento.py", title="Gerenciamento", icon="⚙️")
+    pg_pessoas = st.Page("pages/02_Pessoas.py", title="Gestão de Pessoas", icon="👥")
+    pg_grupos = st.Page("pages/03_Grupos_Familiares.py", title="Grupos Familiares", icon="⛪")
+    pg_vincular = st.Page("pages/04_Vincular_Membros.py", title="Vincular Membros", icon="🔗")
+    pg_lancamento = st.Page("pages/05_Lancar_Presenca.py", title="Lançar Presença", icon="📝")
+    pg_edicao = st.Page("pages/05_Editar_Presenca.py", title="Editar Presença", icon="✏️")
+    pg_relatorios = st.Page("pages/06_Relatorios.py", title="Relatórios", icon="📈")
 
-# --- BUSCA E EXIBIÇÃO ---
-try:
-    query = supabase.table("pedidos_oracao").select(
-        "id, data_pedido, pedido, pessoas(nome_completo, telefone), grupos_familiares(nome)"
-    ).order("data_pedido", desc=True).execute()
+    # Montagem do Menu por Perfil
+    if st.session_state.perfil == 'ADMIN':
+        paginas_nav = {
+            "Geral": [pg_home],
+            "Administração": [pg_gerenciamento, pg_pessoas, pg_grupos, pg_vincular],
+            "Operacional": [pg_lancamento, pg_edicao, pg_relatorios]
+        }
+    else:
+        paginas_nav = {
+            "Geral": [pg_home],
+            "Minha Gestão": [pg_lancamento, pg_edicao, pg_relatorios]
+        }
 
-    if query.data:
-        # Agrupamento Data -> Grupo
-        hierarquia = {}
-        for p in query.data:
-            dt, gp = p['data_pedido'], p['grupos_familiares']['nome']
-            if dt not in hierarquia: hierarquia[dt] = {}
-            if gp not in hierarquia[dt]: hierarquia[dt][gp] = []
-            hierarquia[dt][gp].append(p)
+    pg = st.navigation(paginas_nav)
 
-        for data_iso, grupos in hierarquia.items():
-            data_f = datetime.strptime(data_iso, "%Y-%m-%d").strftime("%d/%m/%Y")
-            with st.container(border=True):
-                col1, col2 = st.columns([3, 1])
-                col1.subheader(f"📅 Encontros de {data_f}")
-                
-                # Exportação Premium SketchNote
-                with col2:
-                    pdf_data = gerar_pdf_sketchnote(data_f, grupos)
-                    st.download_button(
-                        "🤲 Exportar Pedidos de Oração", 
-                        pdf_data, 
-                        f"Mural_{data_iso}.pdf", 
-                        "application/pdf", 
-                        key=f"sk_{data_iso}"
-                    )
-                
-                for nome_gf, pedidos in grupos.items():
-                    with st.expander(f"🏠 {nome_gf}"):
-                        for item in pedidos:
-                            st.write(f"**{item['pessoas']['nome_completo']}**: {item['pedido']}")
-except Exception as e:
-    st.error(f"Erro ao carregar dados: {e}")
+    # --- LÓGICA DE REDIRECIONAMENTO FORÇADO ---
+    # Se for o primeiro acesso após o login, ignora a URL e pula para a Home
+    if st.session_state.primeiro_acesso:
+        st.session_state.primeiro_acesso = False # Desativa para permitir navegação depois
+        st.switch_page(pg_home) # Força a troca de página fisicamente
+
+    # Executa a renderização da página
+    pg.run()
+    
+    # 6. SIDEBAR GLOBAL
+    with st.sidebar:
+        st.divider()
+        st.write(f"Logado como: **{st.session_state.nome_usuario}**")
+        if st.button("🚪 Sair do Sistema", use_container_width=True):
+            st.session_state.logado = False
+            st.rerun()
