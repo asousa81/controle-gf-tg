@@ -45,7 +45,7 @@ with tab_cad:
             if est_civil == "Casado(a)":
                 data_casa = st.date_input("Data de Casamento", value=date.today(), min_value=date(1900, 1, 1))
             
-            bairro = st.text_input("Endereço")
+            endereco = st.text_input("Endereço")
 
         st.markdown("---")
         if st.form_submit_button("🚀 Cadastrar Membro", type="primary"):
@@ -58,7 +58,7 @@ with tab_cad:
                         "genero": genero,
                         "estado_civil": est_civil,
                         "data_casamento": str(data_casa) if data_casa else None,
-                        "bairro": bairro,  # ADICIONE ESTA LINHA
+                        "endereco": endereco,  # ADICIONE ESTA LINHA
                         "ativo": True
                     }).execute()
                     st.success(f"✨ {nome} cadastrado com sucesso!")
