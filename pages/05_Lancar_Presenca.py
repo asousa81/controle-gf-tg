@@ -149,7 +149,7 @@ if grupo_sel:
                     lista_membros = []
                     lista_pedidos = []
                     for p_id, presente in presencas_marcadas.items():
-                        if presente:
+                        if presente:A
                             # 1. Adiciona os dados de presença
                             lista_membros.append({
                                 "data_reuniao": str(data_reuniao), 
@@ -160,14 +160,18 @@ if grupo_sel:
                                 "horario_termino": h_fim.strftime("%H:%M:%S")
                             })
                             
-                            # 2. Adiciona o pedido de oração (dentro do if presente)
-                            txt_pedido = pedidos_oracao.get(p_id, "").strip()
-                            if txt_pedido:
+                            # 2. Processa o pedido de oração com revisão (Substitui linhas 163-171)
+                            txt_pedido_bruto = pedidos_oracao.get(p_id, "").strip()
+                            if txt_pedido_bruto:
+                            # Spinner para avisar que a IA está revisando o texto
+                            with st.spinner("Refinando gramática..."):
+                                txt_corrigido = corrigir_texto(txt_pedido_bruto)
+                                
                                 lista_pedidos.append({
                                     "data_pedido": str(data_reuniao),
                                     "pessoa_id": p_id,
                                     "grupo_id": grupo_sel["id"],
-                                    "pedido": txt_pedido
+                                    "pedido": txt_corrigido
                                 })
                 
                     # C) GRAVA NO BANCO
