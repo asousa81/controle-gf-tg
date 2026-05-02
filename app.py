@@ -6,7 +6,7 @@ from fpdf import FPDF
 import os
 
 # 1. CONFIGURAÇÃO DA PÁGINA
-st.set_page_config(page_title="Mural SketchNote", page_icon="🎨", layout="wide")
+st.set_page_config(page_title="Mural de Oração", page_icon="🙌", layout="wide")
 
 @st.cache_resource
 def get_supabase_client():
@@ -116,7 +116,7 @@ try:
                     # Gera o PDF estilo SketchNote
                     pdf_bytes = gerar_pdf_sketchnote(data_f, grupos)
                     st.download_button(
-                        label="🎨 Exportar SketchNote",
+                        label="🤲 Exportar Orações",
                         data=pdf_bytes,
                         file_name=f"SketchNote_{data_iso}.pdf",
                         mime="application/pdf",
