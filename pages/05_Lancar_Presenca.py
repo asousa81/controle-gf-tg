@@ -2,14 +2,27 @@ import streamlit as st
 import pandas as pd
 from supabase import create_client
 from datetime import date, datetime
+import language_tool_python
 
 # 1. CONFIGURAÇÃO DA PÁGINA
 st.set_page_config(page_title="Lançar Presença", page_icon="📝", layout="wide")
 
-# 2. CONEXÃO COM SUPABASE
+# 2. CONEXÃO COM SUPABASE E FERRAMENTA DE CORREÇÃO
 @st.cache_resource
 def get_supabase_client():
     return create_client(st.secrets["SUPABASE_URL"], st.secrets["SUPABASE_KEY"])
+
+@st.cache_resource
+def get_tool():
+    # Inicializa o motor de correção para Português do Brasil
+    return language_tool_python.LanguageTool('pt-BR')
+
+def corrigir_texto(texto):
+    if not texto: return ""
+    tool = get_tool()
+    # Analisa e aplica correções gramaticais e ortográficas
+    matches = tool.check(texto)
+    return language_tool_python.utils.correct(texto, matches)
 
 supabase = get_supabase_client()
 
@@ -23,11 +36,9 @@ usuario_id = st.session_state.get('usuario_id')
 perfil = st.session_state.get('perfil')
 
 if perfil == 'ADMIN':
-    # Arthur e Simone veem todos os grupos
     res_g = supabase.table("grupos_familiares").select("id, numero, nome").eq("ativo", True).order("numero").execute()
     g_opcoes = res_g.data
 else:
-    # Líderes veem apenas seus grupos vinculados
     res_g = supabase.table("membros_grupo").select(
         "grupo_id, grupos_familiares(id, numero, nome)"
     ).eq("pessoa_id", usuario_id).filter("funcao", "in", '("LÍDER", "CO-LÍDER")').execute()
@@ -68,7 +79,6 @@ if grupo_sel:
     pedidos_oracao = {}
     obs = ""
     
-    # Busca membros ativos do grupo
     res_m = supabase.table("membros_grupo").select(
         "pessoa_id, funcao, pessoas(nome_completo)"
     ).eq("grupo_id", grupo_sel["id"]).eq("ativo", True).execute()
@@ -78,20 +88,15 @@ if grupo_sel:
         ordem_funcao = {"LÍDER": 0, "CO-LÍDER": 1, "ANFITRIÃO": 2, "MEMBRO": 3}
         membros_ordenados = sorted(membros, key=lambda x: ordem_funcao.get(x["funcao"], 99))
 
-        # --- INICIALIZAÇÃO DOS DICIONÁRIOS (Linha 79) ---
-        pedidos_oracao = {} 
-
         st.subheader(f"👥 Membros de {grupo_sel['nome']}")
-        for m in membros_ordenados: # Linha 81 no seu print
+        for m in membros_ordenados:
             col_nome, col_presenca = st.columns([3, 1])
             with col_nome:
                 prefixo = "⭐ " if "LÍDER" in m["funcao"] else "🏠 " if "ANFITRIÃO" in m["funcao"] else "👤 "
                 st.write(f"{prefixo} **{m['nome']}** ({m['funcao']})")
             with col_presenca:
-                # Captura a presença
                 presencas_marcadas[m["id"]] = st.checkbox("Presente", key=f"p_{m['id']}")
             
-            # NOVO: Se o check for marcado, abre o campo de oração logo abaixo
             if presencas_marcadas[m["id"]]:
                 pedidos_oracao[m["id"]] = st.text_input(
                     f"Pedido de Oração: {m['nome']}", 
@@ -100,9 +105,8 @@ if grupo_sel:
                 )
 
         st.divider()
-        obs = st.text_area("Anotações da Reunião", placeholder="Pedidos de oração ou observações...")
+        obs = st.text_area("Anotações da Reunião", placeholder="Observações gerais da reunião...")
 
-    # --- SEÇÃO DE VISITANTES ---
     st.subheader("➕ Adicionar Visitantes")
     if "lista_visitantes" not in st.session_state:
         st.session_state.lista_visitantes = []
@@ -137,20 +141,17 @@ if grupo_sel:
     with col_btn_save:
         if st.button("🚀 Salvar Chamada Completa", type="primary", use_container_width=True):
             try:
-                # A) VALIDAÇÃO DE EXISTÊNCIA (IMPEDE DUPLICIDADE NA FONTE)
                 check_p = supabase.table("presencas").select("id", count='exact').eq("grupo_id", grupo_sel["id"]).eq("data_reuniao", str(data_reuniao)).execute()
-                check_v = supabase.table("visitantes_encontro").select("id", count='exact').eq("grupo_id", grupo_sel["id"]).eq("data_reuniao", str(data_reuniao)).execute()
-
-                if (check_p.count and check_p.count > 0) or (check_v.count and check_v.count > 0):
+                
+                if check_p.count and check_p.count > 0:
                     st.error(f"⚠️ Já existe um lançamento para o dia {data_reuniao.strftime('%d/%m/%Y')}.")
-                    st.info("Para realizar alterações, utilize a aba **'Editar Presença'**.")
                 else:
-                    # B) PROCESSA MEMBROS
                     lista_membros = []
                     lista_pedidos = []
+                    
                     for p_id, presente in presencas_marcadas.items():
-                        if presente:A
-                            # 1. Adiciona os dados de presença
+                        if presente:
+                            # 1. Dados de presença
                             lista_membros.append({
                                 "data_reuniao": str(data_reuniao), 
                                 "pessoa_id": p_id, 
@@ -160,21 +161,19 @@ if grupo_sel:
                                 "horario_termino": h_fim.strftime("%H:%M:%S")
                             })
                             
-                            # 2. Processa o pedido de oração com revisão (Substitui linhas 163-171)
+                            # 2. Processamento do pedido com correção gramatical
                             txt_pedido_bruto = pedidos_oracao.get(p_id, "").strip()
                             if txt_pedido_bruto:
-                            # Spinner para avisar que a IA está revisando o texto
-                            with st.spinner("Refinando gramática..."):
-                                txt_corrigido = corrigir_texto(txt_pedido_bruto)
-                                
-                                lista_pedidos.append({
-                                    "data_pedido": str(data_reuniao),
-                                    "pessoa_id": p_id,
-                                    "grupo_id": grupo_sel["id"],
-                                    "pedido": txt_corrigido
-                                })
+                                with st.spinner(f"Revisando pedido..."):
+                                    txt_corrigido = corrigir_texto(txt_pedido_bruto)
+                                    lista_pedidos.append({
+                                        "data_pedido": str(data_reuniao),
+                                        "pessoa_id": p_id,
+                                        "grupo_id": grupo_sel["id"],
+                                        "pedido": txt_corrigido
+                                    })
                 
-                    # C) GRAVA NO BANCO
+                    # Gravação no Banco de Dados[cite: 1]
                     if lista_membros:
                         supabase.table("presencas").insert(lista_membros).execute()
                     
@@ -185,13 +184,12 @@ if grupo_sel:
                     if lista_pedidos:
                         supabase.table("pedidos_oracao").insert(lista_pedidos).execute()
                     
-                    st.success("✅ Chamada registrada com sucesso!")
+                    st.success("✅ Chamada e pedidos registrados com sucesso!")
                     st.balloons()
             except Exception as e:
                 st.error(f"Erro ao salvar: {e}")
 
     with col_btn_exit:
-        # NAVEGAÇÃO EXPLÍCITA PARA A HOME
         if st.button("🏠 Sair", use_container_width=True):
             st.switch_page("pages/00_Boas_Vindas.py")
 
