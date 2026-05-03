@@ -24,7 +24,7 @@ except Exception as e:
     st.error(f"Erro ao listar modelos: {e}")
 
 # Use o nome mais padrão possível
-model_flash = genai.GenerativeModel('gemini-1.5-flash')
+model_flash = genai.GenerativeModel('gemini-1.5-flash-8b')
 
 def corrigir_texto(texto):
     if not texto or len(texto) < 3: return texto
