@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 from supabase import create_client
 from datetime import date, datetime
-import language_tool_python
+
 import google.generativeai as genai
 
 # 1. CONFIGURAÇÃO DA PÁGINA
@@ -36,10 +36,13 @@ def corrigir_texto(texto):
     
     try:
         response = model_flash.generate_content(prompt)
-        # Retorna o texto limpo da IA
-        return response.text.strip()
+        # Verifica se a IA realmente retornou um texto
+        if response and response.text:
+            return response.text.strip()
+        return texto
     except Exception as e:
-        # Se a IA falhar, retorna o texto original para não travar o fluxo
+        # ISSO É VITAL: Mostra o erro real na tela do Streamlit
+        st.error(f"Erro na Revisão: {e}")
         return texto
 
 supabase = get_supabase_client()
