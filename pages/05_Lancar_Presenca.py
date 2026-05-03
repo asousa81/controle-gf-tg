@@ -26,6 +26,16 @@ except Exception as e:
 # Use o nome mais padrão possível
 model_flash = genai.GenerativeModel('gemini-1.5-flash-8b')
 
+# --- BLOCO DE DIAGNÓSTICO ---
+if st.button("🔍 DEBUG: Listar Meus Modelos"):
+    try:
+        models = [m.name for m in genai.list_models()]
+        st.write("Sua chave tem acesso a estes modelos:")
+        st.json(models)
+    except Exception as e:
+        st.error(f"Erro ao acessar a lista de modelos: {e}")
+# ----------------------------
+
 def corrigir_texto(texto):
     if not texto or len(texto) < 3: return texto
     
