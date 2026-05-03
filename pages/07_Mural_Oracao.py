@@ -27,7 +27,7 @@ def gerar_texto_whatsapp(nome, pedido):
     
     A mensagem deve conter duas partes:
     1. Uma frase acolhedora e empática, priorizando empatia PRINCIPALMENTE se o pedido envolver sofrimento. (máximo 300 caracteres).
-    2. Um versículo bíblico real e curto, com referência exata (ex: João 16:33), TOTALMENTE conectado ao contexto do pedido.
+    2. Um versículo bíblico real e curto, com referência exata (ex: João 16:33), TOTALMENTE conectado ao contexto do pedido. Lembre de incluir o versículos não só a referência.
     
     REGRAS DE FORMATAÇÃO: 
     - NÃO use nenhum tipo de rótulo, título, colchetes ou marcadores (como "MENSAGEM:", "PALAVRA:", "[MENSAGEM]", etc).
