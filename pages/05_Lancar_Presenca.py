@@ -13,9 +13,18 @@ st.set_page_config(page_title="Lançar Presença", page_icon="📝", layout="wid
 def get_supabase_client():
     return create_client(st.secrets["SUPABASE_URL"], st.secrets["SUPABASE_KEY"])
 
-# Configuração da IA de Revisão
+# Configuração com verificação de modelos
 genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
-model_flash = genai.GenerativeModel('models/gemini-1.5-flash')
+
+# Tente listar os modelos para ver o que está disponível (aparecerá nos logs)
+try:
+    available_models = [m.name for m in genai.list_models()]
+    # st.write(f"Modelos disponíveis: {available_models}") # Opcional: mostra na tela
+except Exception as e:
+    st.error(f"Erro ao listar modelos: {e}")
+
+# Use o nome mais padrão possível
+model_flash = genai.GenerativeModel('gemini-1.5-flash')
 
 def corrigir_texto(texto):
     if not texto or len(texto) < 3: return texto
