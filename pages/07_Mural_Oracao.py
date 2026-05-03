@@ -6,7 +6,7 @@ from fpdf import FPDF
 import os
 
 # CONFIGURAÇÃO
-st.set_page_config(page_title="Mural SketchNote", page_icon="🙌", layout="wide")
+st.set_page_config(page_title="Mural de Oração", page_icon="🙌", layout="wide")
 
 # Conexão Supabase
 @st.cache_resource
