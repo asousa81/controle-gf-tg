@@ -3,3 +3,4 @@ supabase
 pandas
 fpdf2
 language_tool_python
+google-generativeai
