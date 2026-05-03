@@ -2,6 +2,7 @@ import streamlit as st
 from supabase import create_client
 from datetime import datetime
 import urllib.parse
+import google.generativeai as genai
 from fpdf import FPDF
 import os
 
