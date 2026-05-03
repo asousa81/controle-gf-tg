@@ -16,27 +16,8 @@ def get_supabase_client():
 # Configuração com verificação de modelos
 genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
 
-# Tente listar os modelos para ver o que está disponível (aparecerá nos logs)
-try:
-    available_models = [m.name for m in genai.list_models()]
-    # st.write(f"Modelos disponíveis: {available_models}") # Opcional: mostra na tela
-except Exception as e:
-    st.error(f"Erro ao listar modelos: {e}")
-
 # Use o nome mais padrão possível
 model_flash = genai.GenerativeModel('gemini-2.5-flash-lite')
-
-
-
-# --- BLOCO DE DIAGNÓSTICO ---
-if st.button("🔍 DEBUG: Listar Meus Modelos"):
-    try:
-        models = [m.name for m in genai.list_models()]
-        st.write("Sua chave tem acesso a estes modelos:")
-        st.json(models)
-    except Exception as e:
-        st.error(f"Erro ao acessar a lista de modelos: {e}")
-# ----------------------------
 
 def corrigir_texto(texto):
     if not texto or len(texto) < 3: return texto
