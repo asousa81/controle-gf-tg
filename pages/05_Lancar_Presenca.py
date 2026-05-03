@@ -2,8 +2,8 @@ import streamlit as st
 import pandas as pd
 from supabase import create_client
 from datetime import date, datetime
-
 import google.generativeai as genai
+st.write(f"Versão da biblioteca: {genai.__version__}")
 
 # 1. CONFIGURAÇÃO DA PÁGINA
 st.set_page_config(page_title="Lançar Presença", page_icon="📝", layout="wide")
