@@ -30,5 +30,6 @@ with col2:
     """)
 
 st.divider()
+st.image("logo_tg.jpg", width=150)
 st.write("---")
 st.caption("IEQ Templo Gospel - Uma igreja para Permanecer")
