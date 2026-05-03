@@ -16,6 +16,24 @@ def get_supabase_client():
 
 supabase = get_supabase_client()
 
+# --- NOVA IMPLEMENTAÇÃO: CONFIGURAÇÃO DA IA (GEMINI) ---
+genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
+model_flash = genai.GenerativeModel('gemini-2.5-flash-lite')
+
+def gerar_texto_whatsapp(nome, pedido):
+    prompt = f"""
+    Atue como um líder de grupo cristão acolhedor. 
+    Escreva uma mensagem curta (máximo 250 caracteres) para {nome} 
+    que pediu oração por: "{pedido}".
+    A mensagem deve ser encorajadora e incluir um versículo curto de esperança.
+    """
+    try:
+        response = model_flash.generate_content(prompt)
+        return response.text.strip()
+    except:
+        return f"Olá {nome}, estamos em oração pelo seu pedido. Deus te abençoe!"
+# -------------------------------------------------------
+
 # --- CLASSE PDF SKETCHNOTE (Ajustada para o erro de binário) ---
 class SketchNotePDF(FPDF):
     def sketchy_header(self, data_f):
@@ -106,5 +124,31 @@ try:
                     with st.expander(f"🏠 {nome_gf}"):
                         for item in pedidos:
                             st.write(f"**{item['pessoas']['nome_completo']}**: {item['pedido']}")
+                            
+                            # --- NOVA IMPLEMENTAÇÃO: LÓGICA DO WHATSAPP ---
+                            nome_pessoa = item['pessoas']['nome_completo'].split()[0]
+                            telefone = item['pessoas'].get('telefone')
+                            
+                            if telefone:
+                                # Limpa o número para garantir que o link funcione (tira espaços, traços, etc)
+                                tel_formatado = str(telefone).strip().replace(" ", "").replace("-", "").replace("(", "").replace(")", "")
+                                
+                                # Adiciona o código do Brasil se não tiver
+                                if not tel_formatado.startswith('55'):
+                                    tel_formatado = '55' + tel_formatado
+                                
+                                # Gera a mensagem e prepara para URL
+                                mensagem = gerar_texto_whatsapp(nome_pessoa, item['pedido'])
+                                texto_url = urllib.parse.quote(mensagem)
+                                
+                                link_zap = f"https://wa.me/{tel_formatado}?text={texto_url}"
+                                
+                                st.link_button(f"📲 Encorajar {nome_pessoa}", link_zap, help="Abre o WhatsApp com mensagem gerada por IA")
+                            else:
+                                st.caption("ℹ️ Telefone não disponível para este membro.")
+                                
+                            st.divider()
+                            # ----------------------------------------------
+                            
 except Exception as e:
     st.error(f"Erro ao carregar dados: {e}")
