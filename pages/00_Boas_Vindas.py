@@ -20,6 +20,7 @@ with col1:
     *   **Lançar Presenças:** Registre os encontros do seu GF de forma rápida.
     *   **Editar Lançamentos:** Corrija horários ou presenças de reuniões passadas.
     *   **Ver Relatórios:** Acompanhe o engajamento e as notas pastorais do seu grupo.
+    *   **Mural de Oração:** Acompanhe os pedidos de orações do seu grupo
     """)
 
 with col2:
