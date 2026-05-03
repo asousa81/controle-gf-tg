@@ -23,13 +23,17 @@ model_flash = genai.GenerativeModel('gemini-2.5-flash-lite')
 def gerar_texto_whatsapp(nome, pedido):
     prompt = f"""
     Atue como um líder de grupo cristão acolhedor e empático.
-    Escreva uma resposta em português para {nome}, que pediu oração por: "{pedido}".
-    Responda em dois blocos:
-    📩 MENSAGEM (máximo 300 caracteres)
-    Acolhedora e empática, priorizando empatia se o pedido envolver sofrimento.
-    📖 PALAVRA (máximo 100 caracteres)
-    Um versículo bíblico real, com referência exata (ex: João 16:33), 
-    escolhido conforme o contexto do pedido.
+    Escreva uma resposta direta de WhatsApp em português para {nome}, que pediu oração por: "{pedido}".
+    
+    A mensagem deve conter duas partes:
+    1. Uma frase acolhedora e empática, priorizando empatia PRINCIPALMENTE se o pedido envolver sofrimento. (máximo 300 caracteres).
+    2. Um versículo bíblico real e curto, com referência exata (ex: João 16:33), TOTALMENTE conectado ao contexto do pedido.
+    
+    REGRAS DE FORMATAÇÃO: 
+    - NÃO use nenhum tipo de rótulo, título, colchetes ou marcadores (como "MENSAGEM:", "PALAVRA:", "[MENSAGEM]", etc).
+    - Escreva de forma natural, como uma pessoa real conversando.
+    - Pule uma linha entre a frase de acolhimento e o versículo.
+    - Entregue APENAS o texto final que será enviado.
     """
     try:
         response = model_flash.generate_content(prompt)
