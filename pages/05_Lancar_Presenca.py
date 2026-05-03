@@ -3,6 +3,7 @@ import pandas as pd
 from supabase import create_client
 from datetime import date, datetime
 import language_tool_python
+import google.generativeai as genai
 
 # 1. CONFIGURAÇÃO DA PÁGINA
 st.set_page_config(page_title="Lançar Presença", page_icon="📝", layout="wide")
@@ -12,17 +13,34 @@ st.set_page_config(page_title="Lançar Presença", page_icon="📝", layout="wid
 def get_supabase_client():
     return create_client(st.secrets["SUPABASE_URL"], st.secrets["SUPABASE_KEY"])
 
-@st.cache_resource
-def get_tool():
-    # Inicializa o motor de correção para Português do Brasil
-    return language_tool_python.LanguageTool('pt-BR')
+# Configuração da IA de Revisão
+genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
+model_flash = genai.GenerativeModel('gemini-1.5-flash')
 
 def corrigir_texto(texto):
-    if not texto: return ""
-    tool = get_tool()
-    # Analisa e aplica correções gramaticais e ortográficas
-    matches = tool.check(texto)
-    return language_tool_python.utils.correct(texto, matches)
+    if not texto or len(texto) < 3: return texto
+    
+    prompt = f"""
+    Você é um revisor de textos para uma comunidade cristã.
+    Corrija APENAS os seguintes tipos de erro:
+    - Ortografia (grafia incorreta de palavras)
+    - Acentuação e uso de crase
+    - Concordância nominal e verbal
+    - Pontuação claramente incorreta (ex: vírgula entre sujeito e verbo)
+
+    Não altere vocabulário, estrutura das frases, estilo ou tom.
+    Não adicione, remova ou reformule ideias.
+    Se o texto já estiver correto, retorne-o sem alterações.
+    Texto para revisar: {texto}
+    """
+    
+    try:
+        response = model_flash.generate_content(prompt)
+        # Retorna o texto limpo da IA
+        return response.text.strip()
+    except Exception as e:
+        # Se a IA falhar, retorna o texto original para não travar o fluxo
+        return texto
 
 supabase = get_supabase_client()
 
