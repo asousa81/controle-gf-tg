@@ -15,7 +15,7 @@ def get_supabase_client():
 
 # Configuração da IA de Revisão
 genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
-model_flash = genai.GenerativeModel('gemini-1.5-flash')
+model_flash = genai.GenerativeModel('gemini-1.5-flash-latest')
 
 def corrigir_texto(texto):
     if not texto or len(texto) < 3: return texto
