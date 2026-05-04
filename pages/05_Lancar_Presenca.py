@@ -3,6 +3,8 @@ import pandas as pd
 from supabase import create_client
 from datetime import date, datetime
 import google.generativeai as genai
+import time
+
 st.write(f"Versão da biblioteca: {genai.__version__}")
 
 # 1. CONFIGURAÇÃO DA PÁGINA
@@ -44,6 +46,10 @@ def corrigir_texto(texto):
             'HARM_CATEGORY_SEXUALLY_EXPLICIT': 'BLOCK_NONE',
             'HARM_CATEGORY_DANGEROUS_CONTENT': 'BLOCK_NONE'
         }
+        
+        # Pausa de 2 segundos para não estourar as 15 requisições/minuto do plano Free
+        # ao salvar vários pedidos de oração de uma só vez no loop.
+        time.sleep(2) 
         
         response = model_flash.generate_content(prompt, safety_settings=config_seguranca)
         
@@ -205,7 +211,7 @@ if grupo_sel:
                                         "pedido": txt_corrigido
                                     })
                 
-                    # Gravação no Banco de Dados[cite: 1]
+                    # Gravação no Banco de Dados
                     if lista_membros:
                         supabase.table("presencas").insert(lista_membros).execute()
                     
