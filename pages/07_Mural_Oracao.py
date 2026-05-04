@@ -60,7 +60,7 @@ def buscar_versiculo(ref_ia, cap, ver):
 
 # --- CONFIGURAÇÃO DA IA (GEMINI) ---
 genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
-model_flash = genai.GenerativeModel('gemini-2.5-flash-lite')
+model_flash = genai.GenerativeModel('gemini-1.5-flash')
 
 def gerar_texto_whatsapp(nome, pedido):
     # SEU PROMPT MANTIDO, com ajuste apenas para extrair as coordenadas da bíblia local
