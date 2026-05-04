@@ -55,10 +55,21 @@ def gerar_texto_whatsapp(nome, pedido):
     {texto_da_biblia}
     """
     try:
-        response = model_flash.generate_content(prompt)
+        # Desligando os filtros de segurança que barram orações sobre saúde/problemas
+        config_seguranca = {
+            'HARM_CATEGORY_HARASSMENT': 'BLOCK_NONE',
+            'HARM_CATEGORY_HATE_SPEECH': 'BLOCK_NONE',
+            'HARM_CATEGORY_SEXUALLY_EXPLICIT': 'BLOCK_NONE',
+            'HARM_CATEGORY_DANGEROUS_CONTENT': 'BLOCK_NONE'
+        }
+        
+        response = model_flash.generate_content(prompt, safety_settings=config_seguranca)
         return response.text.strip()
-    except:
-        return f"Olá {nome}, estamos em oração pelo seu pedido. Deus te abençoe!"
+        
+    except Exception as e:
+        # AQUI ESTÁ O PULO DO GATO: Se falhar, o erro vai aparecer no seu WhatsApp!
+        # Assim saberemos exatamente o motivo do bloqueio.
+        return f"🚨 ERRO DO SISTEMA: {str(e)} \n\nOlá {nome}, estamos em oração pelo seu pedido. Deus te abençoe!"
 # -------------------------------------------------------
 
 # --- CLASSE PDF SKETCHNOTE (Ajustada para o erro de binário) ---
