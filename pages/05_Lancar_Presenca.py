@@ -18,7 +18,7 @@ def get_supabase_client():
 # Configuração com verificação de modelos
 genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
 
-# 1. Mudar o modelo para o 1.5-flash (maior cota gratuita)
+# 1. Mudar o modelo para o 2.5-flash (maior cota gratuita)
 model_flash = genai.GenerativeModel('gemini-2.5-flash'')
 
 def corrigir_texto(texto):
