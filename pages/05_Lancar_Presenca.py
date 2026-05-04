@@ -16,8 +16,8 @@ def get_supabase_client():
 # Configuração com verificação de modelos
 genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
 
-# Use o nome mais padrão possível
-model_flash = genai.GenerativeModel('gemini-2.5-flash-lite')
+# 1. Mudar o modelo para o 1.5-flash (maior cota gratuita)
+model_flash = genai.GenerativeModel('gemini-1.5-flash')
 
 def corrigir_texto(texto):
     if not texto or len(texto) < 3: return texto
@@ -37,14 +37,23 @@ def corrigir_texto(texto):
     """
     
     try:
-        response = model_flash.generate_content(prompt)
-        # Verifica se a IA realmente retornou um texto
+        # Configuração de segurança para evitar bloqueios por temas sensíveis de oração
+        config_seguranca = {
+            'HARM_CATEGORY_HARASSMENT': 'BLOCK_NONE',
+            'HARM_CATEGORY_HATE_SPEECH': 'BLOCK_NONE',
+            'HARM_CATEGORY_SEXUALLY_EXPLICIT': 'BLOCK_NONE',
+            'HARM_CATEGORY_DANGEROUS_CONTENT': 'BLOCK_NONE'
+        }
+        
+        response = model_flash.generate_content(prompt, safety_settings=config_seguranca)
+        
         if response and response.text:
             return response.text.strip()
         return texto
-    except Exception as e:
-        # ISSO É VITAL: Mostra o erro real na tela do Streamlit
-        st.error(f"Erro na Revisão: {e}")
+        
+    except Exception:
+        # REMOVIDO st.error: Se a cota acabar, o app não mostra erro vermelho.
+        # Ele apenas retorna o texto original sem correção.
         return texto
 
 supabase = get_supabase_client()
