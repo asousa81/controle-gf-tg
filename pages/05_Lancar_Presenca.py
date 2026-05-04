@@ -57,9 +57,9 @@ def corrigir_texto(texto):
             return response.text.strip()
         return texto
         
-    except Exception as e:
-        st.error(f"🚨 Erro na IA de Correção: {e}")
-        return texto
+        except Exception as e:
+            st.error(f"🚨 Erro na IA de Correção: {e}")
+            return texto
 
 supabase = get_supabase_client()
 
