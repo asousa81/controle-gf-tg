@@ -57,9 +57,8 @@ def corrigir_texto(texto):
             return response.text.strip()
         return texto
         
-    except Exception:
-        # REMOVIDO st.error: Se a cota acabar, o app não mostra erro vermelho.
-        # Ele apenas retorna o texto original sem correção.
+    except Exception as e:
+        st.error(f"🚨 Erro na IA de Correção: {e}")
         return texto
 
 supabase = get_supabase_client()
