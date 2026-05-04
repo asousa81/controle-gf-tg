@@ -3,6 +3,20 @@ from supabase import create_client
 from datetime import datetime
 import urllib.parse
 import google.generativeai as genai
+
+# 1. FUNÇÃO NOVA: Lemos o arquivo da Bíblia do seu repositório 
+# O @st.cache_data garante que o app leia o arquivo só 1 vez, ficando super rápido!
+@st.cache_data
+def carregar_biblia():
+    # Substitua "biblia.json" pelo nome e formato exato do arquivo que você subiu (ex: biblia.txt)
+    try:
+        with open("biblia.json", "r", encoding="utf-8") as f:
+            return f.read()
+    except Exception:
+        return "" # Se não achar o arquivo, não trava o app
+
+texto_da_biblia = carregar_biblia()
+
 from fpdf import FPDF
 import os
 
@@ -28,6 +42,7 @@ def gerar_texto_whatsapp(nome, pedido):
     A mensagem deve conter duas partes:
     1. Uma frase acolhedora e empática, priorizando empatia PRINCIPALMENTE se o pedido envolver sofrimento. (máximo 300 caracteres).
     2. Um versículo bíblico real e curto, com referência exata (ex: João 16:33), TOTALMENTE conectado ao contexto do pedido. Lembre de incluir o versículos não só a referência.
+    ⚠️ REGRA ABSOLUTA: Extraia o texto do versículo EXCLUSIVAMENTE da base bíblica fornecida no final deste prompt. Não invente ou use outras traduções.
     3. SEMPRE, gerar um mensagem nova toda vez que for acionado.
     
     REGRAS DE FORMATAÇÃO: 
@@ -35,6 +50,9 @@ def gerar_texto_whatsapp(nome, pedido):
     - Escreva de forma natural, como uma pessoa real conversando.
     - Pule uma linha entre a frase de acolhimento e o versículo.
     - Entregue APENAS o texto final que será enviado.
+
+     --- BASE BÍBLICA PARA CONSULTA ---
+    {texto_da_biblia}
     """
     try:
         response = model_flash.generate_content(prompt)
