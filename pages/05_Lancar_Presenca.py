@@ -135,10 +135,11 @@ if grupo_sel:
                 presencas_marcadas[m["id"]] = st.checkbox("Presente", key=f"p_{m['id']}")
             
             if presencas_marcadas[m["id"]]:
-                pedidos_oracao[m["id"]] = st.text_input(
+                pedidos_oracao[m["id"]] = st.text_area(
                     f"Pedido de Oração: {m['nome']}", 
                     key=f"ora_{m['id']}", 
                     placeholder="Escreva o pedido aqui..."
+                                 height=100
                 )
 
         st.divider()
