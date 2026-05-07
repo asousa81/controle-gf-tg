@@ -139,7 +139,7 @@ if grupo_sel:
                     f"Pedido de Oração: {m['nome']}", 
                     key=f"ora_{m['id']}", 
                     placeholder="Escreva o pedido aqui..."
-                    height=100
+                    
                 )
 
         st.divider()
