@@ -2,64 +2,14 @@ import streamlit as st
 import pandas as pd
 from supabase import create_client
 from datetime import date, datetime
-import google.generativeai as genai
-import time
-
-st.write(f"Versão da biblioteca: {genai.__version__}")
 
 # 1. CONFIGURAÇÃO DA PÁGINA
 st.set_page_config(page_title="Lançar Presença", page_icon="📝", layout="wide")
 
-# 2. CONEXÃO COM SUPABASE E FERRAMENTA DE CORREÇÃO
+# 2. CONEXÃO COM SUPABASE
 @st.cache_resource
 def get_supabase_client():
     return create_client(st.secrets["SUPABASE_URL"], st.secrets["SUPABASE_KEY"])
-
-# Configuração com verificação de modelos
-genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
-
-# 1. Mudar o modelo para o 2.5-flash (maior cota gratuita)
-model_flash = genai.GenerativeModel('gemini-2.5-flash')
-
-def corrigir_texto(texto):
-    if not texto or len(texto) < 3: return texto
-    
-    prompt = f"""
-    Você é um revisor de textos para uma comunidade cristã.
-    Corrija APENAS os seguintes tipos de erro:
-    - Ortografia (grafia incorreta de palavras)
-    - Acentuação e uso de crase
-    - Concordância nominal e verbal
-    - Pontuação claramente incorreta (ex: vírgula entre sujeito e verbo)
-
-    Não altere vocabulário, estrutura das frases, estilo ou tom.
-    Não adicione, remova ou reformule ideias.
-    Se o texto já estiver correto, retorne-o sem alterações.
-    Texto para revisar: {texto}
-    """
-    
-    try:
-        # Configuração de segurança para evitar bloqueios por temas sensíveis de oração
-        config_seguranca = {
-            'HARM_CATEGORY_HARASSMENT': 'BLOCK_NONE',
-            'HARM_CATEGORY_HATE_SPEECH': 'BLOCK_NONE',
-            'HARM_CATEGORY_SEXUALLY_EXPLICIT': 'BLOCK_NONE',
-            'HARM_CATEGORY_DANGEROUS_CONTENT': 'BLOCK_NONE'
-        }
-        
-        # Pausa de 2 segundos para não estourar as 15 requisições/minuto do plano Free
-        # ao salvar vários pedidos de oração de uma só vez no loop.
-        time.sleep(2) 
-        
-        response = model_flash.generate_content(prompt, safety_settings=config_seguranca)
-        
-        if response and response.text:
-            return response.text.strip()
-        return texto
-        
-    except Exception as e:
-        st.error(f"🚨 Erro na IA de Correção: {e}")
-        return texto
 
 supabase = get_supabase_client()
 
@@ -139,7 +89,6 @@ if grupo_sel:
                     f"Pedido de Oração: {m['nome']}", 
                     key=f"ora_{m['id']}", 
                     placeholder="Escreva o pedido aqui..."
-                    
                 )
 
         st.divider()
@@ -189,7 +138,6 @@ if grupo_sel:
                     
                     for p_id, presente in presencas_marcadas.items():
                         if presente:
-                            # 1. Dados de presença
                             lista_membros.append({
                                 "data_reuniao": str(data_reuniao), 
                                 "pessoa_id": p_id, 
@@ -199,25 +147,21 @@ if grupo_sel:
                                 "horario_termino": h_fim.strftime("%H:%M:%S")
                             })
                             
-                            # 2. Processamento do pedido com correção gramatical
-                            txt_pedido_bruto = pedidos_oracao.get(p_id, "").strip()
-                            if txt_pedido_bruto:
-                                with st.spinner(f"Revisando pedido..."):
-                                    txt_corrigido = corrigir_texto(txt_pedido_bruto)
-                                    lista_pedidos.append({
-                                        "data_pedido": str(data_reuniao),
-                                        "pessoa_id": p_id,
-                                        "grupo_id": grupo_sel["id"],
-                                        "pedido": txt_corrigido
-                                    })
+                            txt_pedido = pedidos_oracao.get(p_id, "").strip()
+                            if txt_pedido:
+                                lista_pedidos.append({
+                                    "data_pedido": str(data_reuniao),
+                                    "pessoa_id": p_id,
+                                    "grupo_id": grupo_sel["id"],
+                                    "pedido": txt_pedido
+                                })
                 
-                    # Gravação no Banco de Dados
                     if lista_membros:
                         supabase.table("presencas").insert(lista_membros).execute()
                     
                     if st.session_state.lista_visitantes:
                         supabase.table("visitantes_encontro").insert(st.session_state.lista_visitantes).execute()
-                        st.session_state.lista_visitantes = [] 
+                        st.session_state.lista_visitantes = []
 
                     if lista_pedidos:
                         supabase.table("pedidos_oracao").insert(lista_pedidos).execute()
