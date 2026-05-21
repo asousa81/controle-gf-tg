@@ -22,11 +22,9 @@ usuario_id = st.session_state.get('usuario_id')
 perfil = st.session_state.get('perfil')
 
 if perfil == 'ADMIN':
-    # Arthur e Simone veem tudo
     res_g = supabase.table("grupos_familiares").select("id, numero, nome").eq("ativo", True).order("numero").execute()
     g_opcoes = res_g.data
 else:
-    # Líderes veem apenas seus grupos vinculados
     res_g = supabase.table("membros_grupo").select(
         "grupo_id, grupos_familiares(id, numero, nome)"
     ).eq("pessoa_id", usuario_id).filter("funcao", "in", '("LÍDER", "CO-LÍDER")').execute()
@@ -41,11 +39,10 @@ if not g_opcoes:
         st.switch_page("app.py")
     st.stop()
 
-# --- PASSO 1: SELEÇÃO (USANDO AS OPÇÕES FILTRADAS) ---
+# --- PASSO 1: SELEÇÃO ---
 col_g, col_d = st.columns(2)
 
 with col_g:
-    # Aqui usamos as g_opcoes que já foram filtradas lá em cima
     grupo_sel = st.selectbox(
         "Selecione o GF", 
         g_opcoes, 
@@ -64,7 +61,11 @@ if grupo_sel:
     if res_presencas_existentes.data:
         mapa_p = {p['pessoa_id']: p for p in res_presencas_existentes.data}
         dados_reuniao = res_presencas_existentes.data[0]
-        
+
+        # Carrega pedidos de oração existentes para essa data/grupo
+        res_pedidos = supabase.table("pedidos_oracao").select("*").eq("grupo_id", grupo_sel["id"]).eq("data_pedido", str(data_reuniao)).execute()
+        mapa_pedidos = {p['pessoa_id']: p['pedido'] for p in res_pedidos.data} if res_pedidos.data else {}
+
         def format_time_safe(val, default):
             if val is None or str(val).lower() == 'none':
                 return default
@@ -86,6 +87,7 @@ if grupo_sel:
         res_m = supabase.table("membros_grupo").select("pessoa_id, funcao, pessoas(nome_completo)").eq("grupo_id", grupo_sel["id"]).eq("ativo", True).execute()
         
         presencas_editadas = {}
+        pedidos_editados = {}
         
         if res_m.data:
             ordem = {"LÍDER": 0, "CO-LÍDER": 1, "ANFITRIÃO": 2, "MEMBRO": 3}
@@ -100,6 +102,15 @@ if grupo_sel:
                 with col_p:
                     presencas_editadas[p_id] = st.checkbox("Presente", value=(p_id in mapa_p), key=f"ed_{p_id}_{data_reuniao}")
 
+                # Exibe o campo de pedido de oração apenas se marcado como presente
+                if presencas_editadas[p_id]:
+                    pedidos_editados[p_id] = st.text_area(
+                        f"Pedido de Oração: {nome}",
+                        value=mapa_pedidos.get(p_id, ""),
+                        key=f"ora_ed_{p_id}_{data_reuniao}",
+                        placeholder="Escreva ou edite o pedido aqui..."
+                    )
+
             st.divider()
             nova_obs = st.text_area("Observações da Reunião", value=obs_previa)
 
@@ -108,32 +119,8 @@ if grupo_sel:
             with col_save:
                 if st.button("💾 Atualizar Lançamento", type="primary", use_container_width=True):
                     try:
+                        # Atualiza presenças (delete + insert)
                         supabase.table("presencas").delete().eq("grupo_id", grupo_sel["id"]).eq("data_reuniao", str(data_reuniao)).execute()
                         
                         lista_nova = []
-                        for id_pessoa, marcado in presencas_editadas.items():
-                            if marcado:
-                                lista_nova.append({
-                                    "data_reuniao": str(data_reuniao),
-                                    "pessoa_id": id_pessoa,
-                                    "grupo_id": grupo_sel["id"],
-                                    "observacao": nova_obs,
-                                    "horario_inicio": h_inicio.strftime("%H:%M:%S"),
-                                    "horario_termino": h_fim.strftime("%H:%M:%S")
-                                })
-                        
-                        if lista_nova:
-                            supabase.table("presencas").insert(lista_nova).execute()
-                        
-                        st.success("✅ Lançamento atualizado!")
-                        st.balloons()
-                    except Exception as e:
-                        st.error(f"Erro ao salvar: {e}")
-            
-            with col_back:
-                if st.button("🏠 Voltar ao Início", use_container_width=True):
-                    st.switch_page("app.py")
-    else:
-        st.warning(f"🔍 Nenhum lançamento encontrado para o dia {data_reuniao.strftime('%d/%m/%Y')}.")
-        if st.button("🏠 Voltar ao Início", use_container_width=True):
-            st.switch_page("pages/00_Boas_Vindas.py")
+                        for id_pes
