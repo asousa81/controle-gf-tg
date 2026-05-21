@@ -32,7 +32,7 @@ st.title("✏️ Ajustar Lancamentos")
 if not g_opcoes:
     st.warning("Nenhum grupo vinculado ao seu perfil.")
     if st.button("🏠 Voltar ao Inicio"):
-        st.switch_page("app.py")
+        st.switch_page("pages/00_Boas_Vindas.py")
     st.stop()
 
 col_g, col_d = st.columns(2)
@@ -152,7 +152,7 @@ if grupo_sel:
 
             with col_back:
                 if st.button("🏠 Voltar ao Inicio", use_container_width=True):
-                    st.switch_page("app.py")
+                    st.switch_page("pages/00_Boas_Vindas.py")
 
     else:
         st.warning("Nenhum lancamento encontrado para o dia " + data_reuniao.strftime("%d/%m/%Y") + ".")
